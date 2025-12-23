@@ -1,0 +1,98 @@
+---
+title: "regularized glmmLasso"
+output: html_document
+date: "2026-01-05"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+require(dplyr)
+require(tidyr)
+require(ggplot2)
+require(GGally)
+require(reshape2)
+require(lme4)
+require(glmmLasso)
+require(compiler)
+require(parallel)
+require(boot)
+require(lattice)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r datasets}
+## risk datasets
+CRE_admission_patients <- CRE_admission %>%
+    select(USUBJID, SPEC_DATE)
+CRE_admission_patients <- CRE_admission_patients[!duplicated(CRE_admission_patients$USUBJID), ]
+
+## if need to know the bacterium, use the following dataset
+data_wide <- CRE_admission %>%
+  pivot_wider(
+    names_from = Identification_MALDITOF,
+    values_from = SPEC_DATE,
+    id_cols = USUBJID
+  )
+
+CRE_discharge_patients <- CRE_discharge %>%
+  select(USUBJID, SPEC_DATE)
+CRE_discharge_patients <- CRE_discharge_patients[!duplicated(CRE_discharge_patients$USUBJID), ]
+CRE_discharge_admission_patients <- merge(CRE_discharge_patients, CRE_admission_patients, by="USUBJID", all=T)
+CRE_discharge_admission_patients<- CRE_discharge_admission_patients %>%
+  mutate(CRE_admission = ifelse(!is.na(SPEC_DATE.y), "CRE", "No CRE"),
+         CRE_discharge = ifelse(!is.na(SPEC_DATE.x), "CRE", "No CRE"))
+
+CREC_admission <- CRE_admission %>%
+  filter(Identification_MALDITOF == "Escherichia coli") %>%
+  select(USUBJID, SPEC_DATE)
+CREC_admission <- CREC_admission[!duplicated(CREC_admission$USUBJID),]
+
+CREC_discharge <- CRE_discharge %>%
+  filter(Identification_MALDITOF == "Escherichia coli") %>%
+  select(USUBJID, SPEC_DATE)
+CREC_discharge <- CREC_discharge[!duplicated(CREC_discharge$USUBJID),]
+CREC_discharge_admission <- merge(CREC_discharge, CREC_admission, by="USUBJID", all=T)
+CREC_discharge_admission<- CREC_discharge_admission %>%
+  mutate(CRE_admission = ifelse(!is.na(SPEC_DATE.y), "CRE", "No CRE"),
+         CRE_discharge = ifelse(!is.na(SPEC_DATE.x), "CRE", "No CRE"))
+
+CRKP_admission <- CRE_admission %>%
+  filter(Identification_MALDITOF == "Klebsiella pneumoniae") %>%
+  select(USUBJID, SPEC_DATE)
+CRKP_admission <- CRKP_admission[!duplicated(CRKP_admission$USUBJID),]
+
+CRKP_discharge <- CRE_discharge %>%
+  filter(Identification_MALDITOF == "Klebsiella pneumoniae") %>%
+  select(USUBJID, SPEC_DATE)
+CRKP_discharge <- CRKP_discharge[!duplicated(CRKP_discharge$USUBJID),]
+CRKP_discharge_admission <- merge(CRKP_discharge, CRKP_admission, by="USUBJID", all=T)
+CRKP_discharge_admission<- CRKP_discharge_admission %>%
+  mutate(CRE_admission = ifelse(!is.na(SPEC_DATE.y), "CRE", "No CRE"),
+         CRE_discharge = ifelse(!is.na(SPEC_DATE.x), "CRE", "No CRE"))
+
+## antibiotic use in hospital data
+antibiotics <- AbCurrent_Detail %>% 
+  select(USUBJID, ANB_HOSP_START_DATE, ANB_HOSP_END_DATE, agent) %>%
+  mutate(DOT = as.numeric((ANB_HOSP_END_DATE-ANB_HOSP_START_DATE)/86400 +1))
+
+antibiotics <- antibiotics %>%
+  group_by(USUBJID, agent) %>%
+  summarise(DOT = sum(DOT)) 
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
