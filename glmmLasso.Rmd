@@ -27,72 +27,162 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
 ```{r datasets}
-## risk datasets
-CRE_admission_patients <- CRE_admission %>%
-    select(USUBJID, SPEC_DATE)
-CRE_admission_patients <- CRE_admission_patients[!duplicated(CRE_admission_patients$USUBJID), ]
+## specify risk dataset
+riskdata <- merge(all_data, CREC_admission, by ="USUBJID", all=T )
+riskdata <- riskdata %>%
+  mutate(CRE_carriage = ifelse(is.na(SPEC_DATE), 0, 1),
+         smoking2 = as.factor(ifelse(smoking == "all non-smokers", "all non-smokers", "smokers")),
+         children2 = as.factor(ifelse(is.na(children), 1, children)), 
+         # NA to be classified as 1= having no children living in the house; 2 = having children living in the house
+         job_farmer = as.factor(ifelse(job == "farmer", "farmers", "allothers")), #1=others, 3=housewife 4= retired 2 = farmers
+         job_housewife = as.factor(ifelse(job == "housewife", "housewives", "allothers")), #1=others, 3=housewife 4= retired 2 = farmers
+         job_retired = as.factor(ifelse(job == "retired", "retired", "allothers")), #1=others, 3=housewife 4= retired 2 = farmers
+         heart_diseases = as.factor(ifelse(as.factor(MI_HIS+CHF)==0, 0, 1)),
+         vascular_diseases = as.factor(ifelse(as.factor(CVD+PVD)==0, 0,1)),
+         cancer = as.factor(TUMOR_NOMETA + LEUKEMIA + LYMPHOMA + META_TUMOR),
+         ICD_Circulatory = as.factor(ifelse(ICDGroup == "Circulatory diseases", "Circulatory diseases", "allothers")), 
+         ICD_Genitourinary = as.factor(ifelse(ICDGroup == "Genitourinary diseases", "Genitourinary diseases", "allothers")),
+         ICD_IDIntestinal = as.factor(ifelse(ICDGroup == "ID (Intestinal)", "ID (Intestinal)", "allothers")),
+         ICD_IDOther = as.factor(ifelse(ICDGroup == "ID (Other)", "ID (Other)", "allothers")),
+         ICD_Neoplasms = as.factor(ifelse(ICDGroup == "Neoplasms", "Neoplasms", "allothers")),
+         ICD_Digestive = as.factor(ifelse(ICDGroup == "Digestive diseases", "Digestive diseases", "allothers")),
+         ICD_Respiratory = as.factor(ifelse(ICDGroup == "Respiratory diseases", "Respiratory diseases", "allothers")),
+         )
 
 ## if need to know the bacterium, use the following dataset
-data_wide <- CRE_admission %>%
-  pivot_wider(
-    names_from = Identification_MALDITOF,
-    values_from = SPEC_DATE,
-    id_cols = USUBJID
-  )
-
-CRE_discharge_patients <- CRE_discharge %>%
-  select(USUBJID, SPEC_DATE)
-CRE_discharge_patients <- CRE_discharge_patients[!duplicated(CRE_discharge_patients$USUBJID), ]
-CRE_discharge_admission_patients <- merge(CRE_discharge_patients, CRE_admission_patients, by="USUBJID", all=T)
-CRE_discharge_admission_patients<- CRE_discharge_admission_patients %>%
-  mutate(CRE_admission = ifelse(!is.na(SPEC_DATE.y), "CRE", "No CRE"),
-         CRE_discharge = ifelse(!is.na(SPEC_DATE.x), "CRE", "No CRE"))
-
-CREC_admission <- CRE_admission %>%
-  filter(Identification_MALDITOF == "Escherichia coli") %>%
-  select(USUBJID, SPEC_DATE)
-CREC_admission <- CREC_admission[!duplicated(CREC_admission$USUBJID),]
-
-CREC_discharge <- CRE_discharge %>%
-  filter(Identification_MALDITOF == "Escherichia coli") %>%
-  select(USUBJID, SPEC_DATE)
-CREC_discharge <- CREC_discharge[!duplicated(CREC_discharge$USUBJID),]
-CREC_discharge_admission <- merge(CREC_discharge, CREC_admission, by="USUBJID", all=T)
-CREC_discharge_admission<- CREC_discharge_admission %>%
-  mutate(CRE_admission = ifelse(!is.na(SPEC_DATE.y), "CRE", "No CRE"),
-         CRE_discharge = ifelse(!is.na(SPEC_DATE.x), "CRE", "No CRE"))
-
-CRKP_admission <- CRE_admission %>%
-  filter(Identification_MALDITOF == "Klebsiella pneumoniae") %>%
-  select(USUBJID, SPEC_DATE)
-CRKP_admission <- CRKP_admission[!duplicated(CRKP_admission$USUBJID),]
-
-CRKP_discharge <- CRE_discharge %>%
-  filter(Identification_MALDITOF == "Klebsiella pneumoniae") %>%
-  select(USUBJID, SPEC_DATE)
-CRKP_discharge <- CRKP_discharge[!duplicated(CRKP_discharge$USUBJID),]
-CRKP_discharge_admission <- merge(CRKP_discharge, CRKP_admission, by="USUBJID", all=T)
-CRKP_discharge_admission<- CRKP_discharge_admission %>%
-  mutate(CRE_admission = ifelse(!is.na(SPEC_DATE.y), "CRE", "No CRE"),
-         CRE_discharge = ifelse(!is.na(SPEC_DATE.x), "CRE", "No CRE"))
-
-## antibiotic use in hospital data
-antibiotics <- AbCurrent_Detail %>% 
-  select(USUBJID, ANB_HOSP_START_DATE, ANB_HOSP_END_DATE, agent) %>%
-  mutate(DOT = as.numeric((ANB_HOSP_END_DATE-ANB_HOSP_START_DATE)/86400 +1))
-
-antibiotics <- antibiotics %>%
-  group_by(USUBJID, agent) %>%
-  summarise(DOT = sum(DOT)) 
+##CRE_organism <- CRE_admission %>%
+##  pivot_wider(
+##    names_from = Identification_MALDITOF,
+##    values_from = SPEC_DATE,
+##    id_cols = USUBJID
+##  )
 
 ```
 
-## Including Plots
 
-You can also embed plots, for example:
+```{r scaling and fixing data for Lasso}
+###standardize predictor variables before Lasso regression because the penalty is applied to the magnitude of coefficients; standardizing (to mean 0, std dev 1) ensures all variables are treated equally, allowing for meaningful coefficient comparison and selection based on true predictive power, not scale.
+##Check Defaults: Confirm glmmLassoControl settings; standardize = TRUE is the standard for 2026 to ensure the L1 penalty is consistent.
+##Factor Recognition: Ensure categorical variables are recognized as factors so the algorithm can apply group-wise updates. 
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+#for continuous variables - check if re-scaled back when interpreting
+
+riskdata_scaled <- 
+  riskdata %>% 
+  mutate(
+    age_s = scale(age), 
+    los_s = scale(los),
+    DOT_s = scale(DOT), 
+    gender = as.factor(GENDER),
+    hospital = as.factor(SITEID),
+    cormobidity = as.factor(CORMOBIDITY),
+    dementia = as.factor(DEMENTIA),
+    cpd = as.factor(CPD),
+    ctd = as.factor(CTD),
+    pud = as.factor(PUD),
+    mild_liver = as.factor(MILD_LIVER),
+    sev_liver = as.factor(SEV_LIVER),
+    hemiplegia = as.factor(HEMIPLEGIA),
+    sev_renal = as.factor(SEV_RENAL),
+    diabetes_noeod = as.factor(DIAB_NOEOD),
+    diabetes_eod = as.factor(DIAB_EOD),
+  )
+
+#no patient has AIDS, also not include pvd as no cases have pvd
+
+## to fix NAs and check data
+vars_to_keep <- c(
+  "CRE_carriage", "age_s", "gender", "smoking2", "hospital", "children2", 
+  "married", "ambulatory", "job_farmer", "job_housewife", "job_retired", 
+  "cormobidity", "heart_diseases", "vascular_diseases", "dementia", "cpd", "ctd","pud",
+  "mild_liver", "sev_liver", "hemiplegia", "sev_renal", "diabetes_noeod",
+  "diabetes_eod", "cancer",
+  "alcohol", "drug","wardtype", "InvasiveHistory", "MedicationHistory","HealthcareHistory", "hospitaltype", 
+  "ICD_Circulatory", "ICD_Genitourinary", "ICD_IDIntestinal", "ICD_IDOther", "ICD_Neoplasms", "ICD_Respiratory", "ICD_Digestive")
+
+data_clean <- riskdata_scaled[complete.cases(riskdata_scaled[,vars_to_keep]),]
+
+print(nrow(riskdata_scaled) - nrow(data_clean)) # Check how many rows you lost
+```
+```{r fit a simple model glmm}
+
+mixed_formula <- CRE_carriage ~ age_s + gender+smoking2+children2+married+ambulatory+job_farmer+job_housewife+job_retired +cormobidity+vascular_diseases+cpd+ctd+pud+mild_liver+sev_liver+hemiplegia+sev_renal+diabetes_noeod+diabetes_eod+ cancer+alcohol +drug+wardtype+InvasiveHistory +MedicationHistory+HealthcareHistory + hospitaltype+ICD_Circulatory + ICD_Genitourinary + ICD_IDIntestinal + ICD_IDOther + ICD_Neoplasms+ICD_Respiratory+ICD_Digestive+
+                            (1 | hospital)  #not include heart_diseases and dementia yet -
+
+simple_mixed_model <- glmer(mixed_formula, data = riskdata_scaled, family = binomial(link = "logit"))
+initial_fixed_estimates <- fixef(simple_mixed_model)
+initial_random_estimates <- ranef(simple_mixed_model)
+VarCorr(simple_mixed_model)
+
+Delta.start<-c(as.numeric(initial_fixed_estimates),rep(0,6),
+               as.numeric(initial_random_estimates))
+Q.start<-as.numeric(VarCorr(simple_mixed_model))
+
+```
+
+
+```{r Fit Model using glmmLasso}
+## Fit the Model using glmmLasso: 
+## find best lambda
+
+# Define a sequence of lambda values (from high penalty to low)
+lambda_seq <- seq(50, 0, by = -1)
+
+# Initialize a vector to store BIC or AIC values
+baic_vec <- rep(Inf, length(lambda_seq))
+
+# Create a loop to test each lambda
+for(j in 1:length(lambda_seq)){
+  print(paste("Testing Lambda:", lambda_seq[j]))
+  #Use try() to prevent the loop from breaking if one model fails to converge
+  glmm_temp <- try(glmmLasso(
+    fix = formula_fixed,
+    rnd = list(hospital=~1),
+    data = data_clean,
+    lambda = lambda_seq[j],
+    family = binomial(),
+    switch.NR = TRUE,
+    final.re = FALSE,
+    control=list(start=Delta.start,q_start=Q.start)),
+    silent = TRUE)
+  #If the model fit successfully, save the BIC
+  if(!inherits(glmm_temp, "try-error")){
+    baic_vec[j] <- glmm_temp$bic
+  }
+}
+
+# Find the lambda that produced the lowest BIC
+opt_lambda <- lambda_seq[which.min(baic_vec)]
+print(paste("Optimal Lambda is:", opt_lambda))
+
+baic_vec
+
+
+failed_indices <- which(is.infinite(baic_vec))
+print(lambda_seq[failed_indices])
+
+
+
+```
+
+```{r fit model}
+#fit model
+
+CRE_admission_model <- glmmLasso(
+  fix=mixed_formula,
+  rnd=list(hospital = ~1),
+  data = data_clean,
+  lambda = 10, # larger -> stronger regularization and more coefficients shrunk to zero; smaller reduces penalty
+  family = binomial(link = logit),
+  switch.NR=FALSE, # switch to the faster Newton-Raphson method to speed up model fitting process
+  final.re=TRUE,
+  control=list(start=Delta.start,q_start=Q.start))
+
+CRE_admission_model %>% summary()
+
+
+
+
 ```
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
