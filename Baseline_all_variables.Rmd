@@ -9,10 +9,8 @@ knitr::opts_chunk$set(echo = TRUE)
 require(dplyr)
 require(readxl)
 require(gmodels)
-<<<<<<< HEAD
+
 require(lsmeans)
-=======
->>>>>>> 6ac08361c014bd6d34b2e07d2939c697265fd59b
 
 '%ni%' <- Negate('%in%')
 ```
@@ -23,22 +21,21 @@ require(lsmeans)
 ```{r load data}
 ##read excel with all sheets, if needed
   
-readxl_allsheet <- function(filename, tibble = FALSE) {
-=======
+readxl_allsheet <- function(filename, tibble = FALSE) {}
+
 ##read excel with all sheets, if needed
 library(readxl)    
 read_excel_allsheets <- function(filename, tibble = FALSE) {
     # I prefer straight data.frames
     # but if you like tidyverse tibbles (the default with read_excel)
     # then just pass tibble = TRUE
->>>>>>> 6ac08361c014bd6d34b2e07d2939c697265fd59b
     sheets <- readxl::excel_sheets(filename)
     x <- lapply(sheets, function(X) readxl::read_excel(filename, sheet = X))
     if(!tibble) x <- lapply(x, as.data.frame)
     names(x) <- sheets
     x
 }
-<<<<<<< HEAD
+
 
 survey <- readxl_allsheet("patient-survey.xlsx")
 
@@ -59,8 +56,7 @@ CRE_discharge <- CRE_discharge %>%
                                         'Aeromonas hydrophila', 'Aeromonas veronii',
                                         "Cupriavidus gilardii", "Enterococcus faecium",
                                         "Pseudomonas putida"))
-=======
-mysheets <- read_excel_allsheets("foo.xls")
+
 
 ```{r RS cariage results}
 RS_results <- read_excel('60HN_LAB_ID_20251014_merged_Blue and pink_confirmed by Maldi-TOF.xlsx')
@@ -71,13 +67,12 @@ CRE_admission <- CRE_admission %>%
 CRE_discharge <- subset(RS_results, RS_results$SampleSchedule =='DISCHARGE')
 CRE_discharge <- CRE_discharge %>%
   filter(Identification_MALDITOF %ni% c('No organism identification possible', 'No peaks found'))
->>>>>>> 6ac08361c014bd6d34b2e07d2939c697265fd59b
+
 
 length(unique(CRE_admission$USUBJID)); length(unique(CRE_discharge$USUBJID))
 ## provincial hospitals 159, 010
 
-<<<<<<< HEAD
-=======
+
 CRE_admission$hospitaltype<- ifelse(CRE_admission$SiteID %in% c('010','159'), 1, 2)
 CRE_discharge$hospitaltype<- ifelse(CRE_discharge$SiteID %in% c('010','159'), 1, 2)
 
@@ -114,7 +109,7 @@ CRKP_discharge <- CRE_discharge %>%
   select(USUBJID, SPEC_DATE)
 CRKP_discharge <- CRKP_discharge[!duplicated(CRKP_discharge$USUBJID),]
 
-<<<<<<< HEAD
+
 write.csv(CREC_admission, file = "CREC_admission.csv")
 write.csv(CREC_discharge, file = "CREC_discharge.csv")
 write.csv(CRKP_admission, file = "CRKP_admission.csv")
@@ -166,7 +161,7 @@ admission_CRKP_discharge$CRE_discharge <- ifelse(is.na(admission_CRKP_discharge$
 
 
 ## get group mean and 95%CI, and difference test stats
-=======
+
 ```
 ```{r Admission}
 
@@ -275,7 +270,7 @@ t.test(test_dataset$ONSET_DAYS); summary(subset(test_dataset, test_dataset$CRE_d
 
 ```
 
-<<<<<<< HEAD
+
 
 
 ```{r Other datasets}
@@ -336,7 +331,7 @@ HealthcareHistory <- survey[["DEMO_HIS_HISTORY_GRID"]] %>% filter(entry ==2) %>%
 discharge <- survey[["DIS"]] %>% filter(entry ==2) %>%
   mutate(
     ICDGroup = as.factor(case_when(
-=======
+
 ```{r GenInfo}
 ##General information
 GenInfo_doubleEntry <- read_excel('GenInfo.xlsx')
@@ -504,7 +499,7 @@ Discharge <- subset(Discharge_doubleEntry, Discharge_doubleEntry$entry == 2)
 Discharge <- Discharge %>%
   mutate(
     ICDGroup = case_when(
->>>>>>> 6ac08361c014bd6d34b2e07d2939c697265fd59b
+
     FINAL_DIAG_ICD10 %in% c('A04','A04.8','A04.9','A05.9','A06.4','A08.0', 'A08.5','A09','A09.0', 'A09.9')~'ID (Intestinal)',
     FINAL_DIAG_ICD10 %in% c('A15.0', 'A15.3', 'A16.2', 'A41', 'A41.5', 'A41.8', 'A41.9','A48','A49.9', 'A79.8','A79.9', 'A93', 'A94', 'A97','B00.1', 'B01','B01.2', 'B01.8', 'B02', 'B02.7', 'B02.8','B05', 'B05.2', 'B05.8', 'B05.9', 'B17', 'B18.1', 'B18.2', 'B34.9', 'B83.8') ~ 'ID (Other)',
     FINAL_DIAG_ICD10 %in% c('C18', 'C18.9; K56.6', 'C20','C22','C22.9', 'C34.9', 'C41', 'C61', 'C67.9', 'C70.0','C91.9', 'C92.2', 'C95.0', 'D12.0', 'D17', 'D21', 'D21.9', 'D23', 'D23.9', 'D27','D37.4', 'D38.1', 'D40.0', 'D44.0', 'D48.1')~'Neoplasms',
@@ -512,7 +507,7 @@ Discharge <- Discharge %>%
     FINAL_DIAG_ICD10 %in% c('J01','J01.9','J02','J02.9','J04.0','J06','J06.9','J09', 'J10.1','J10.8','J11','J11.1','J11.8', 'J15', 'J15.9', 'J16', 'J17.1', 'J18', 'J18-I20.2', 'J18.0', 'J18.1', 'J18.8', 'J18.9', 'J20', 'J20.9', 'J40', 'J42', 'J44', 'J44.0', 'J44.1', 'J44.9', 'J45', 'J90','J96.0', 'J96.9','J96/18') ~ 'Respiratory diseases',
    FINAL_DIAG_ICD10 %in% c('K11.2','K12.3', 'K21', 'K21.0', 'K21.9', 'K22.6', 'K25', 'K25.0', 'K25.3', 'K25.9','K26.0', 'K27', 'K27-J20', 'K27.0', 'K27.3', 'K27.9', 'K29', 'K29.0', 'K29.1','K29.2','K29.6', 'K29.9','K30', 'K35', 'K35.1', 'K35.3','K35.5','K35.8', 'K35.9','K36', 'K40', 'K40.9', 'K42', 'K50', 'K52.3', 'K52.9', 'K56', 'K56.4', 'K56.6', 'K57.0', ' K57.3','K57.9','K58','K58.0', 'K59.1', 'K60.3', 'K61.0', 'K61.2', 'K62.1', 'K62.5', 'K63', 'K63.1','K63.5','K64', 'K64.2', 'K64.3', 'K64.8', 'K65', 'K71.2', 'K71.6', 'K72.0', 'K72.2', 'K73','K74', 'K74.0','K74.1','K74.2', 'K74.6', 'K75.8','K77','K78.6', 'K80', 'K80.0','K80.1','K80.2','K80.3','K80.4','K80.8', 'K81', 'K81.0','K83', 'K83.0','K85', 'K85.0', 'K85.8','K85.9', 'K86.1','K92','K92.2','K92.8','K92.9') ~ 'Digestive diseases',
    FINAL_DIAG_ICD10 %in%  c('N00','N13.2','N13.3','N13.6','N17','N17.9','N18','N18.4','N18.5','N18.9','N19','N20','N20.0','N20.1','N20.1, N23, N20.0, K21, M47','N20.2','N21.0', 'N21.1','N23','N28','N30.0', 'N30.8','N32.0', 'N34.1', 'N39.0', 'N40', 'N43.2','N45', 'N47','N48.1','N70') ~ 'Genitourinary diseases',
-<<<<<<< HEAD
+
    TRUE ~ 'Other')),
    ICUduration = difftime(ICU_TO, ICU_FROM, units = 'days')+1,
    CVCduration = difftime(CVC_TO, CVC_FROM, units = 'days')+1,
@@ -520,7 +515,7 @@ Discharge <- Discharge %>%
    UCduration = difftime(UC_TO, UC_FROM, units = 'days')+1,
    IIDduration = difftime(IID_TO, IID_FROM, units = 'days')+1
    )
-=======
+
    TRUE ~ 'Other'
 ))
 
@@ -555,7 +550,7 @@ Discharge_CRKP_admission <- Discharge_CRE_admission %>%
   filter (Identification_MALDITOF == 'Klebsiella pneumoniae')
 Discharge_CRKP_discharge <- Discharge_CRE_discharge %>%
   filter (Identification_MALDITOF == 'Klebsiella pneumoniae')
->>>>>>> 6ac08361c014bd6d34b2e07d2939c697265fd59b
+
 
 
 ### patient ID 159-1-1-39 had CREC at admission, need to be admitted to ICU during hospital stay; continue to have CREC at discharge;
@@ -563,7 +558,7 @@ Discharge_CRKP_discharge <- Discharge_CRE_discharge %>%
 ```
 
 
-<<<<<<< HEAD
+
 ```{r ANTIBIOTIC USE DURING HOSPITALIZATION}
 # Antibiotic use during hospitalization at patient level
 antibiotic_hospital <- survey[["ANT"]] %>% filter(entry ==2) %>%
@@ -571,7 +566,7 @@ antibiotic_hospital <- survey[["ANT"]] %>% filter(entry ==2) %>%
 
 #antibiotic agents used in hospital, each patient can have more than one antibiotic agents
 antibiotic_hospital_agents <- survey[["ANT_ANB_HOSP_GRID"]] %>% filter(entry ==2) %>%
-=======
+
 ``` {r Antibiotics during hospital stay}
 
 #ANTIBIOTIC USE DURING CURRENT ADMISSION 
@@ -610,7 +605,7 @@ AbCurrent_CRKP_discharge <- AbCurrent_CRE_discharge %>%
 AbCurrent_Detail_doubleEntry <- read_excel('AbCurrent_Detail.xlsx')
 AbCurrent_Detail <- subset(AbCurrent_Detail_doubleEntry, AbCurrent_Detail_doubleEntry$entry == 2)
 AbCurrent_Detail <- AbCurrent_Detail %>%
->>>>>>> 6ac08361c014bd6d34b2e07d2939c697265fd59b
+
   mutate(agent = ifelse(ANB_OTHER_SPEC %in% c('Cefoperazol','Cefoperazole', 'Cefoperazon', 'Cefoperazone'), 'Cefoperazone',
                         ifelse(ANB_OTHER_SPEC %in% c('Senitram'), 'Ampicillin_sulbactam',
                                ifelse(ANB_OTHER_SPEC %in% c('Cefamandol','Cefemandol'), 'Cefamandol',
@@ -747,5 +742,5 @@ AB_agent_CIP$CIP_before_agent <- ifelse(AB_agent_CIP$ANB_HOSP_START_DATE.y >= AB
 
 
 ```
->>>>>>> 6ac08361c014bd6d34b2e07d2939c697265fd59b
+
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

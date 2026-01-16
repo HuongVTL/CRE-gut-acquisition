@@ -1,0 +1,366 @@
+---
+title: "Mixed_models"
+output: html_document
+date: "2025-12-04"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+require(dplyr)
+require(tidyr)
+require(ggplot2)
+require(GGally)
+require(reshape2)
+require(lme4)
+require(glmmLasso)
+require(compiler)
+require(parallel)
+require(boot)
+require(lattice)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r mixed-model data prep}
+## risk datasets
+CRE_admission_patients <- CRE_admission %>%
+    select(USUBJID, SPEC_DATE)
+CRE_admission_patients <- CRE_admission_patients[!duplicated(CRE_admission_patients$USUBJID), ]
+
+## if need to know the bacterium, use the following dataset
+data_wide <- CRE_admission %>%
+  pivot_wider(
+    names_from = Identification_MALDITOF,
+    values_from = SPEC_DATE,
+    id_cols = USUBJID
+  )
+
+CRE_discharge_patients <- CRE_discharge %>%
+  select(USUBJID, SPEC_DATE)
+CRE_discharge_patients <- CRE_discharge_patients[!duplicated(CRE_discharge_patients$USUBJID), ]
+CRE_discharge_admission_patients <- merge(CRE_discharge_patients, CRE_admission_patients, by="USUBJID", all=T)
+CRE_discharge_admission_patients<- CRE_discharge_admission_patients %>%
+  mutate(CRE_admission = ifelse(!is.na(SPEC_DATE.y), "CRE", "No CRE"),
+         CRE_discharge = ifelse(!is.na(SPEC_DATE.x), "CRE", "No CRE"))
+
+CREC_admission <- CRE_admission %>%
+  filter(Identification_MALDITOF == "Escherichia coli") %>%
+  select(USUBJID, SPEC_DATE)
+CREC_admission <- CREC_admission[!duplicated(CREC_admission$USUBJID),]
+
+CREC_discharge <- CRE_discharge %>%
+  filter(Identification_MALDITOF == "Escherichia coli") %>%
+  select(USUBJID, SPEC_DATE)
+CREC_discharge <- CREC_discharge[!duplicated(CREC_discharge$USUBJID),]
+CREC_discharge_admission <- merge(CREC_discharge, CREC_admission, by="USUBJID", all=T)
+CREC_discharge_admission<- CREC_discharge_admission %>%
+  mutate(CRE_admission = ifelse(!is.na(SPEC_DATE.y), "CRE", "No CRE"),
+         CRE_discharge = ifelse(!is.na(SPEC_DATE.x), "CRE", "No CRE"))
+
+CRKP_admission <- CRE_admission %>%
+  filter(Identification_MALDITOF == "Klebsiella pneumoniae") %>%
+  select(USUBJID, SPEC_DATE)
+CRKP_admission <- CRKP_admission[!duplicated(CRKP_admission$USUBJID),]
+
+CRKP_discharge <- CRE_discharge %>%
+  filter(Identification_MALDITOF == "Klebsiella pneumoniae") %>%
+  select(USUBJID, SPEC_DATE)
+CRKP_discharge <- CRKP_discharge[!duplicated(CRKP_discharge$USUBJID),]
+CRKP_discharge_admission <- merge(CRKP_discharge, CRKP_admission, by="USUBJID", all=T)
+CRKP_discharge_admission<- CRKP_discharge_admission %>%
+  mutate(CRE_admission = ifelse(!is.na(SPEC_DATE.y), "CRE", "No CRE"),
+         CRE_discharge = ifelse(!is.na(SPEC_DATE.x), "CRE", "No CRE"))
+
+## antibiotic use in hospital data
+antibiotics <- AbCurrent_Detail %>% 
+  select(USUBJID, ANB_HOSP_START_DATE, ANB_HOSP_END_DATE, agent) %>%
+  mutate(DOT = as.numeric((ANB_HOSP_END_DATE-ANB_HOSP_START_DATE)/86400 +1))
+
+antibiotics <- antibiotics %>%
+  group_by(USUBJID, agent) %>%
+  summarise(DOT = sum(DOT)) 
+
+#View(GenInfo %>% select(JOB_SPECIFY,JOB,JOB_final)%>%unique)
+```
+
+
+
+```{r admission models}
+#select CRE dataset: CRE_admission_patients, CREC_admission, CRKP_admission
+CRE_dataset <- CRE_discharge_patients
+
+riskdata1 <- cbind(Admission,Discharge[,c(2,6,11:40)],AbCurrent[,c(2, 6)]) # same number of rows
+
+riskdata2 <- cbind(GenInfo[, c(2,7,12,13,14,25,31,36)],InvasiveHistory[,c(2,12)], MedicationHistory[,c(2,12)],TravelHistory[,c(2,12)],HealthcareHistory[,c(2,12)])
+
+riskdata3 <- merge(riskdata1[,c(1:63, 65:95, 97)], riskdata2[,c(1:8,10,12,14,16)], by = "USUBJID", all = T)
+
+riskdata4 <- merge(riskdata3, CRE_dataset,by = "USUBJID", all = T)
+
+riskdata <- merge(riskdata4,AbCurrentDOT, by = "USUBJID", all = T)
+
+riskdata <- within(riskdata, {
+  province <- as.factor(ifelse(SITEID %in% c("008","010","071","073", "160", "161"), 1, 2))
+  gender <- factor(GENDER)
+  age_cat <- factor(age_cat_Charlson, levels = 0:4, labels = c("less than 50", "50-59", "60-69", "70-79", "80 or older"))
+  CRE <- as.numeric(ifelse(!is.na(SPEC_DATE), 1, 0))
+  ward <- as.factor(ifelse(WARD_3 == 1, "surgical", "medical/id"))
+  job <- as.factor(ifelse(JOB_final== 6, "farmer",ifelse(JOB_final== 7,"housewife",ifelse(JOB_final == 8, "retired", "all other jobs"))))
+  smoking <- as.factor(ifelse(SMOKING == 1, "current smoker", ifelse(SMOKING == 2, "former smoker", "all non-smokers")))
+  children<- as.factor(ifelse(CHILDREN == 0, "no children in the household", "with children in the household"))
+  married <- as.factor(ifelse(MARITAL ==1, "married", "other"))
+  alcohol <- as.factor(ifelse(AlcoholCAGE == 0, "0 problem", "1-4 problem"))
+  drug <- as.factor(ifelse(DrugCAGE == 0, "0 problem", "1-4 problem"))
+  ambulatory <- as.factor(ifelse(AMBULATORY == 1, "independent", "not independent"))
+  diagnosis <- as.factor(ifelse(ICDGroup == "Other", "All other diagnoses",ICDGroup))
+  antibiotics<- as.factor(ifelse(is.na(number), "no", "yes"))
+  DOT <- ifelse(is.na(DOT), 0, DOT)
+})
+
+riskdata <- riskdata %>% 
+  mutate(PVCduration = as.numeric(as.Date.POSIXct(riskdata$PVC_TO)- as.Date.POSIXct(riskdata$PVC_FROM))+1,
+         UCduration = as.numeric(as.Date.POSIXct(riskdata$UC_TO)- as.Date.POSIXct(riskdata$UC_FROM))) %>%
+  mutate(PVCduration = ifelse(is.na(PVCduration), 0, PVCduration),
+         UCduration = ifelse(is.na(UCduration), 0, UCduration))
+
+
+## get group mean and 95%CI, and difference test stats
+require("lsmeans")
+anova_result <- aov(DOT~CRE, data=riskdata); summary(anova_result)
+lsmeans(anova_result, ~CRE); 
+t.test(riskdata$DOT); summary(subset(riskdata, riskdata$CRE==1)$number,na.rm=T); summary(riskdata$DOT)
+
+
+##glm
+
+#variables: ward+job +ADM_FROM+ gender +age+children+alcohol+drug+Ab_history+smoking+ ambulatory+CPD +SEV_RENAL+DIAB_EOD+InvasiveHistory+HealthcareHistory+diagnosis
+riskmodel <- glm(CRE ~ province+ ward+job +ADM_FROM+ gender +age+Ab_history+smoking+ ambulatory+CPD +SEV_RENAL+DIAB_EOD+InvasiveHistory+HealthcareHistory+diagnosis, 
+                   data = riskdata, 
+                   family = binomial) 
+summary(riskmodel);
+se <- sqrt(diag(vcov(riskmodel))); tab <- cbind(Est = coef(riskmodel), LL = coef(riskmodel) - 1.96 * se, UL = coef(riskmodel) + 1.96 *se); exp(tab)
+coef(summary(riskmodel))[,4] #p-value
+                   
+### MIXED MODEL IN LME4   
+
+#admission model variables CRE: ward+ job+ gender +age+Ab_history+smoking+ambulatory+ CPD+ SEV_RENAL +DIAB_EOD+ InvasiveHistory + HealthcareHistory+ diagnosis
+#admission model variables CREC: ward+ job+ gender +age+children+Ab_history+smoking+ CPD +DIAB_EOD+ InvasiveHistory + HealthcareHistory+ diagnosis
+#admission model variables CRKP: ward+ gender +age+ ADM_FROM+ Ab_history+ambulatory+ SEV_RENAL +DIAB_EOD+ InvasiveHistory + HealthcareHistory+ diagnosis
+
+# admission model variables ALL: ward+job +ADM_FROM+ gender+age+married+alcohol+drug+children+ Ab_history+smoking+ ambulatory+CPD +SEV_RENAL+ DIAB_NOEOD+ DIAB_EOD+ InvasiveHistory+ HealthcareHistory+diagnosis -- choose those with p-value <0.10 in univariable mixed-effects model
+
+riskmodel_mixed <- glmer(CRE ~ ward+ gender +age+ ADM_FROM+ Ab_history+ambulatory+ SEV_RENAL +DIAB_EOD+ InvasiveHistory + HealthcareHistory+ diagnosis
+                         +(1|province), 
+                   data = riskdata, 
+                   family = binomial,control = glmerControl(optimizer = "bobyqa"),nAGQ = 10)
+summary(riskmodel_mixed)
+se <- sqrt(diag(vcov(riskmodel_mixed))); tab <- cbind(Est = fixef(riskmodel_mixed), LL = fixef(riskmodel_mixed) - 1.96 * se, UL = fixef(riskmodel_mixed) + 1.96 *se); exp(tab)
+coef(summary(riskmodel))[,4] #p-value
+    
+```
+
+
+```{r discharge models}
+#select CRE dataset: CRE_discharge_admission_patients; CREC_discharge_admission; CRKP_discharge_admission
+CRE_dataset <- CRE_discharge_admission_patients
+
+riskdata1 <- cbind(Admission,Discharge[,c(2,6,11:40)],Discharge[,c(2,6,11:40)],AbCurrent[,c(2, 6)]) # same number of rows
+
+riskdata2 <- cbind(GenInfo[, c(2,7,12,13,14,25,31,36)],InvasiveHistory[,c(2,12)], MedicationHistory[,c(2,12)],TravelHistory[,c(2,12)],HealthcareHistory[,c(2,12)])
+
+riskdata3 <- merge(riskdata1[,c(1:63, 65:95, 97)], riskdata2[,c(1:8,10,12,14,16)], by = "USUBJID", all = T)
+
+riskdata4 <- merge(riskdata3, CRE_dataset,by = "USUBJID", all = T)
+
+riskdata <- merge(riskdata4,AbCurrentDOT, by = "USUBJID", all = T)
+
+riskdata <- within(riskdata, {
+  province <- as.factor(ifelse(SITEID %in% c("008","010","071","073", "160", "161"), 1, 2))
+  gender <- factor(GENDER)
+  age_cat <- factor(age_cat_Charlson, levels = 0:4, labels = c("less than 50", "50-59", "60-69", "70-79", "80 or older"))
+  CRE <- as.numeric(ifelse(!is.na(SPEC_DATE.x), 1, 0))
+  CRE_admission_all <- as.factor(ifelse(CRE_admission %in% c("No CRE", NA), "no", "yes"))
+  ward <- as.factor(ifelse(WARD_3 == 1, "surgical", "medical/id"))
+  job <- as.factor(ifelse(JOB_final== 6, "farmer",ifelse(JOB_final== 7,"housewife",ifelse(JOB_final == 8, "retired", "all other jobs"))))
+  smoking <- as.factor(ifelse(SMOKING == 1, "current smoker", ifelse(SMOKING == 2, "former smoker", "all non-smokers")))
+  children<- as.factor(ifelse(CHILDREN == 0, "no children in the household", "with children in the household"))
+  married <- as.factor(ifelse(MARITAL ==1, "married", "other"))
+  alcohol <- as.factor(ifelse(AlcoholCAGE == 0, "0 problem", "1-4 problem"))
+  drug <- as.factor(ifelse(DrugCAGE == 0, "0 problem", "1-4 problem"))
+  ambulatory <- as.factor(ifelse(AMBULATORY == 1, "independent", "not independent"))
+  diagnosis <- as.factor(ifelse(ICDGroup == "Other", "All other diagnoses",ICDGroup))
+  antibiotics<- as.factor(ifelse(is.na(number), "no", "yes"))
+  DOT <- ifelse(is.na(DOT), 0, DOT)
+})
+
+riskdata <- riskdata %>% 
+  mutate(PVCduration = as.numeric(as.Date.POSIXct(riskdata$PVC_TO)- as.Date.POSIXct(riskdata$PVC_FROM))+1,
+         UCduration = as.numeric(as.Date.POSIXct(riskdata$UC_TO)- as.Date.POSIXct(riskdata$UC_FROM))) %>%
+  mutate(PVCduration = ifelse(is.na(PVCduration), 0, PVCduration),
+         UCduration = ifelse(is.na(UCduration), 0, UCduration))
+
+
+##MODELLING
+
+#variables: ward+job +ADM_FROM+ gender +age+Ab_history+smoking+ ambulatory+CPD +SEV_RENAL+DIAB_EOD+InvasiveHistory+HealthcareHistory+diagnosis
+riskmodel <- glm(CRE ~ CRE_admission_all+ward+province + gender +age+job+alcohol+drug+HealthcareHistory + SEV_RENAL+diagnosis+SURGERY + antibiotics, 
+                   data = riskdata, 
+                   family = binomial) 
+summary(riskmodel);
+se <- sqrt(diag(vcov(riskmodel))); tab <- cbind(Est = coef(riskmodel), LL = coef(riskmodel) - 1.96 * se, UL = coef(riskmodel) + 1.96 *se); exp(tab)
+coef(summary(riskmodel))[,4] #p-value
+                   
+### MIXED MODEL IN LME4   
+
+# discharge model variables all to check before final model including only those with p<0.10 in univariable model: CRE_admission_all+ward+job +ADM_FROM+ gender +age+married+alcohol+drug+children+Ab_history+smoking+ ambulatory+CPD +SEV_RENAL+ DIAB_NOEOD+ DIAB_EOD+ InvasiveHistory+ HealthcareHistory+diagnosis+PittScore+ICU+CVC+ PVC+UC+SURGERY+IID+antibiotics
+
+#discharge model variables CRE: los+CRE_admission_all+ward +ADM_FROM+ gender +age+Ab_history+CPD +diagnosis+PVC+SURGERY+IID + DOT
+#discharge model variables CREC: los+CRE_admission_all+ward + gender +age+Ab_history+CPD+InvasiveHistory+ +diagnosis+PVC+SURGERY + DOT
+#discharge model variables CRKP: los+CRE_admission_all+ward + gender +age+job+alcohol+drug+HealthcareHistory + SEV_RENAL+diagnosis+SURGERY + DOT
+
+## DOT and antibiotics to be evaluated separately, in two separate final models with the same set of other variables for each riskdata
+
+riskmodel_mixed <- glmer(CRE ~ los+CRE_admission_all+ward + gender +age+job+alcohol+drug+HealthcareHistory + SEV_RENAL+diagnosis+SURGERY + DOT
+                         +(1|province), 
+                   data = riskdata, 
+                   family = binomial,control = glmerControl(optimizer = "bobyqa"),nAGQ = 10)
+summary(riskmodel_mixed)
+se <- sqrt(diag(vcov(riskmodel_mixed))); tab <- cbind(Est = fixef(riskmodel_mixed), LL = fixef(riskmodel_mixed) - 1.96 * se, UL = fixef(riskmodel_mixed) + 1.96 *se); exp(tab)
+coef(summary(riskmodel_mixed))[,4] #p-value
+    
+```
+
+```{r adding antibiotic agents to discharge models}
+
+##CRE_discharge_admission_patients; CREC_discharge_admission; CRKP_discharge_admission
+CRE_dataset <- CRKP_discharge_admission
+
+riskdata1 <- cbind(Admission,Discharge[,c(2,6,11:40)],Discharge[,c(2,6,11:40)],AbCurrent[,c(2, 6)]) # same number of rows
+
+riskdata2 <- cbind(GenInfo[, c(2,7,12,13,14,25,31,36)],InvasiveHistory[,c(2,12)], MedicationHistory[,c(2,12)],TravelHistory[,c(2,12)],HealthcareHistory[,c(2,12)])
+
+riskdata3 <- merge(riskdata1[,c(1:63, 65:95, 97)], riskdata2[,c(1:8,10,12,14,16)], by = "USUBJID", all = T)
+
+riskdata4 <- merge(riskdata3, CRE_dataset,by = "USUBJID", all = T)
+
+riskdata <- merge(riskdata4,AbCurrentDOT, by = "USUBJID", all = T)
+
+riskdata <- within(riskdata, {
+  province <- as.factor(ifelse(SITEID %in% c("008","010","071","073", "160", "161"), 1, 2))
+  gender <- factor(GENDER)
+  age_cat <- factor(age_cat_Charlson, levels = 0:4, labels = c("less than 50", "50-59", "60-69", "70-79", "80 or older"))
+  CRE <- as.numeric(ifelse(!is.na(SPEC_DATE.x), 1, 0))
+  CRE_admission_all <- as.factor(ifelse(CRE_admission %in% c("No CRE", NA), "no", "yes"))
+  ward <- as.factor(ifelse(WARD_3 == 1, "surgical", "medical/id"))
+  job <- as.factor(ifelse(JOB_final== 6, "farmer",ifelse(JOB_final== 7,"housewife",ifelse(JOB_final == 8, "retired", "all other jobs"))))
+  smoking <- as.factor(ifelse(SMOKING == 1, "current smoker", ifelse(SMOKING == 2, "former smoker", "all non-smokers")))
+  children<- as.factor(ifelse(CHILDREN == 0, "no children in the household", "with children in the household"))
+  married <- as.factor(ifelse(MARITAL ==1, "married", "other"))
+  alcohol <- as.factor(ifelse(AlcoholCAGE == 0, "0 problem", "1-4 problem"))
+  drug <- as.factor(ifelse(DrugCAGE == 0, "0 problem", "1-4 problem"))
+  ambulatory <- as.factor(ifelse(AMBULATORY == 1, "independent", "not independent"))
+  diagnosis <- as.factor(ifelse(ICDGroup == "Other", "All other diagnoses",ICDGroup))
+  antibiotics<- as.factor(ifelse(is.na(number), "no", "yes"))
+  DOT <- ifelse(is.na(DOT), 0, DOT)
+})
+
+#riskdata with antibiotics use in hospital
+#select relevant/potentially impactful antibiotics in this admission: 
+## Amoxicillin_clavulanicAcid, Ampicillin_sulbactam, Cefamandol, Cefazolin, Cefoperazone, Cefoperazone_sulbactam, Cefotaxime, Cefoxitin, Cefpodoxime_proxetil, Ceftazidime, Ceftizoxime, Ceftriaxone, Cefuroxime, Ciprofloxacin, Gentamicin, Levofloxacin, Metronidazole_IV, Metronidazole_oral
+
+riskdata_ab1 <- merge(riskdata, subset(antibiotics, antibiotics$agent == "Amoxicillin_clavulanicAcid"), by = "USUBJID", all = T)
+riskdata_ab1 <- riskdata_ab1 %>%
+  mutate(Amoxicillin_clavulanicAcid = ifelse(is.na(agent), "no", "yes"))
+riskdata_ab2 <- merge(riskdata_ab1[,c(1:127, 130)], subset(antibiotics, antibiotics$agent == "Ampicillin_sulbactam"), by = "USUBJID", all = T)
+riskdata_ab2 <- riskdata_ab2 %>%
+  mutate(Ampicillin_sulbactam = ifelse(is.na(agent), "no", "yes"))
+riskdata_ab3 <- merge(riskdata_ab2[,c(1:128, 131)], subset(antibiotics, antibiotics$agent == "Cefamandol"), by = "USUBJID", all = T)
+riskdata_ab3 <- riskdata_ab3 %>%
+  mutate(Cefamandol = ifelse(is.na(agent), "no", "yes"))
+riskdata_ab4 <- merge(riskdata_ab3[,c(1:129, 132)], subset(antibiotics, antibiotics$agent == "Cefazolin"), by = "USUBJID", all = T)
+riskdata_ab4 <- riskdata_ab4 %>%
+  mutate(Cefazolin = ifelse(is.na(agent), "no", "yes"))
+riskdata_ab5 <- merge(riskdata_ab4[,c(1:130, 133)], subset(antibiotics, antibiotics$agent == "Cefoperazone"), by = "USUBJID", all = T)
+riskdata_ab5 <- riskdata_ab5 %>%
+  mutate(Cefoperazone = ifelse(is.na(agent), "no", "yes"))
+riskdata_ab6 <- merge(riskdata_ab5[,c(1:131, 134)], subset(antibiotics, antibiotics$agent == "Cefoperazone_sulbactam"), by = "USUBJID", all = T)
+riskdata_ab6 <- riskdata_ab6 %>%
+  mutate(Cefoperazone_sulbactam = ifelse(is.na(agent), "no", "yes"))
+riskdata_ab7 <- merge(riskdata_ab6[,c(1:132, 135)], subset(antibiotics, antibiotics$agent == "Cefotaxime"), by = "USUBJID", all = T)
+riskdata_ab7 <- riskdata_ab7 %>%
+  mutate(Cefotaxime = ifelse(is.na(agent), "no", "yes"))
+riskdata_ab8 <- merge(riskdata_ab7[,c(1:133, 136)], subset(antibiotics, antibiotics$agent == "Cefoxitin"), by = "USUBJID", all = T)
+riskdata_ab8 <- riskdata_ab8 %>%
+  mutate(Cefoxitin = ifelse(is.na(agent), "no", "yes"))
+riskdata_ab9 <- merge(riskdata_ab8[,c(1:134, 137)], subset(antibiotics, antibiotics$agent == "Cefpodoxime_proxetil"), by = "USUBJID", all = T)
+riskdata_ab9 <- riskdata_ab9 %>%
+  mutate(Cefpodoxime_proxetil = ifelse(is.na(agent), "no", "yes"))
+riskdata_ab10 <- merge(riskdata_ab9[,c(1:135, 138)], subset(antibiotics, antibiotics$agent == "Ceftazidime"), by = "USUBJID", all = T)
+riskdata_ab10 <- riskdata_ab10 %>%
+  mutate(Ceftazidime = ifelse(is.na(agent), "no", "yes"))
+riskdata_ab11 <- merge(riskdata_ab10[,c(1:136, 139)], subset(antibiotics, antibiotics$agent == "Ceftizoxime"), by = "USUBJID", all = T)
+riskdata_ab11 <- riskdata_ab11 %>%
+  mutate(Ceftizoxime = ifelse(is.na(agent), "no", "yes"))
+riskdata_ab12 <- merge(riskdata_ab11[,c(1:137, 140)], subset(antibiotics, antibiotics$agent == "Ceftriaxone"), by = "USUBJID", all = T)
+riskdata_ab12 <- riskdata_ab12 %>%
+  mutate(Ceftriaxone = ifelse(is.na(agent), "no", "yes"))
+riskdata_ab13 <- merge(riskdata_ab12[,c(1:138, 141)], subset(antibiotics, antibiotics$agent == "Cefuroxime"), by = "USUBJID", all = T)
+riskdata_ab13 <- riskdata_ab13 %>%
+  mutate(Cefuroxime = ifelse(is.na(agent), "no", "yes"))
+riskdata_ab14 <- merge(riskdata_ab13[,c(1:139, 142)], subset(antibiotics, antibiotics$agent == "Ciprofloxacin"), by = "USUBJID", all = T)
+riskdata_ab14 <- riskdata_ab14 %>%
+  mutate(Ciprofloxacin = ifelse(is.na(agent), "no", "yes"))
+riskdata_ab15 <- merge(riskdata_ab14[,c(1:140, 143)], subset(antibiotics, antibiotics$agent == "Gentamicin"), by = "USUBJID", all = T)
+riskdata_ab15 <- riskdata_ab15 %>%
+  mutate(Gentamicin = ifelse(is.na(agent), "no", "yes"))
+riskdata_ab16 <- merge(riskdata_ab15[,c(1:141, 144)], subset(antibiotics, antibiotics$agent == "Levofloxacin"), by = "USUBJID", all = T)
+riskdata_ab16 <- riskdata_ab16 %>%
+  mutate(Levofloxacin = ifelse(is.na(agent), "no", "yes"))
+riskdata_ab17 <- merge(riskdata_ab16[,c(1:142, 145)], subset(antibiotics, antibiotics$agent == "Metronidazole_IV"), by = "USUBJID", all = T)
+riskdata_ab17 <- riskdata_ab17 %>%
+  mutate(Metronidazole_IV = ifelse(is.na(agent), "no", "yes"))
+riskdata_ab18 <- merge(riskdata_ab17[,c(1:143, 146)], subset(antibiotics, antibiotics$agent == "Metronidazole_oral"), by = "USUBJID", all = T)
+riskdata_ab18 <- riskdata_ab18 %>%
+  mutate(Metronidazole_oral = ifelse(is.na(agent), "no", "yes"))
+
+colnames(riskdata_ab18)
+riskdata_ab <- riskdata_ab18[,c(1:144, 147)]
+colnames(riskdata_ab)
+
+### MIXED MODELS
+
+#Amoxicillin_clavulanicAcid+ Ampicillin_sulbactam +Cefamandol+ Cefazolin+ Cefoperazone+ Cefoperazone_sulbactam+ Cefotaxime+ Cefoxitin+ Cefpodoxime_proxetil+ Ceftazidime+ Ceftizoxime+ Ceftriaxone+ Cefuroxime+ Ciprofloxacin+ Gentamicin+ Levofloxacin+ Metronidazole_IV+ Metronidazole_oral
+
+riskmodel_mixed <- glmer(CRE ~ SEV_RENAL+CRE_admission_all + DOT.x + Amoxicillin_clavulanicAcid+ Ampicillin_sulbactam +Cefamandol+ Cefazolin+ Cefoperazone+ Cefoperazone_sulbactam+ Cefotaxime+ Cefoxitin+ Cefpodoxime_proxetil+ Ceftazidime+ Ceftizoxime+ Ceftriaxone+ Cefuroxime+ Ciprofloxacin+ Gentamicin+ Levofloxacin+ Metronidazole_IV+ Metronidazole_oral  
+                         +(1|province), 
+                   data = riskdata_ab, 
+                   family = binomial,control = glmerControl(optimizer = "bobyqa"),nAGQ = 10)
+summary(riskmodel_mixed)
+se <- sqrt(diag(vcov(riskmodel_mixed))); tab <- cbind(Est = fixef(riskmodel_mixed), LL = fixef(riskmodel_mixed) - 1.96 * se, UL = fixef(riskmodel_mixed) + 1.96 *se); exp(tab)
+coef(summary(riskmodel_mixed))[,4] #p-value
+
+#glm
+riskmodel <- glm(CRE ~ los+CRE_admission_all + DOT.x + Amoxicillin_clavulanicAcid+ Ampicillin_sulbactam +Cefamandol+ Cefazolin+ Cefoperazone+ Cefoperazone_sulbactam+ Cefotaxime+ Cefoxitin+ Cefpodoxime_proxetil+ Ceftazidime+ Ceftizoxime+ Ceftriaxone+ Cefuroxime+ Ciprofloxacin+ Gentamicin+ Levofloxacin+ Metronidazole_IV+ Metronidazole_oral, 
+                   data = riskdata_ab, 
+                   family = binomial) 
+summary(riskmodel);
+se <- sqrt(diag(vcov(riskmodel))); tab <- cbind(Est = coef(riskmodel), LL = coef(riskmodel) - 1.96 * se, UL = coef(riskmodel) + 1.96 *se); exp(tab)
+coef(summary(riskmodel))[,4] #p-value
+
+```
+
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

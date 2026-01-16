@@ -1,7 +1,9 @@
 ---
 title: "regularized glmmLasso for CREC admission risk model"
 output:
-  html_document: default
+  html_document:
+    toc: true
+  
   pdf_document: default
 date: "2026-01-05"
 ---
