@@ -1,6 +1,8 @@
 ---
-title: "regularized glmmLasso"
-output: html_document
+title: "regularized glmmLasso for CREC admission risk model"
+output:
+  html_document: default
+  pdf_document: default
 date: "2026-01-05"
 ---
 
@@ -28,6 +30,8 @@ When you click the **Knit** button a document will be generated that includes bo
 
 ```{r datasets}
 ## specify risk dataset
+all_data <- readRDS("all_data.rds")
+CREC_admission <- readRDS("CREC_admission.rds")
 riskdata <- merge(all_data, CREC_admission, by ="USUBJID", all=T )
 riskdata <- riskdata %>%
   mutate(CRE_carriage = ifelse(is.na(SPEC_DATE), 0, 1),
@@ -71,8 +75,6 @@ riskdata_scaled <-
   riskdata %>% 
   mutate(
     age_s = scale(age), 
-    los_s = scale(los),
-    DOT_s = scale(DOT), 
     gender = as.factor(GENDER),
     hospital = as.factor(SITEID),
     cormobidity = as.factor(CORMOBIDITY),
@@ -91,42 +93,47 @@ riskdata_scaled <-
 #no patient has AIDS, also not include pvd as no cases have pvd
 
 ## to fix NAs and check data
-vars_to_keep <- c(
-  "CRE_carriage", "age_s", "gender", "smoking2", "hospital", "children2", 
-  "married", "ambulatory", "job_farmer", "job_housewife", "job_retired", 
-  "cormobidity", "heart_diseases", "vascular_diseases", "dementia", "cpd", "ctd","pud",
-  "mild_liver", "sev_liver", "hemiplegia", "sev_renal", "diabetes_noeod",
-  "diabetes_eod", "cancer",
-  "alcohol", "drug","wardtype", "InvasiveHistory", "MedicationHistory","HealthcareHistory", "hospitaltype", 
-  "ICD_Circulatory", "ICD_Genitourinary", "ICD_IDIntestinal", "ICD_IDOther", "ICD_Neoplasms", "ICD_Respiratory", "ICD_Digestive")
+vars_to_keep <- c("CRE_carriage", "age_s", "gender", "smoking2","hospital", "SITEID", "children2", "married", "ambulatory", "job_farmer", "job_housewife", "job_retired", "cormobidity", "heart_diseases", "vascular_diseases", "dementia", "cpd", "ctd","pud","mild_liver", "sev_liver", "hemiplegia", "sev_renal", "diabetes_noeod","diabetes_eod", "cancer","alcohol", "drug","wardtype","Ab_history", "InvasiveHistory", "MedicationHistory","HealthcareHistory", "hospitaltype", "ICD_Circulatory", "ICD_Genitourinary", "ICD_IDIntestinal", "ICD_IDOther", "ICD_Neoplasms", "ICD_Respiratory", "ICD_Digestive")
 
 data_clean <- riskdata_scaled[complete.cases(riskdata_scaled[,vars_to_keep]),]
 
 print(nrow(riskdata_scaled) - nrow(data_clean)) # Check how many rows you lost
 ```
+
+
 ```{r fit a simple model glmm}
 
-mixed_formula <- CRE_carriage ~ age_s + gender+smoking2+children2+married+ambulatory+job_farmer+job_housewife+job_retired +cormobidity+vascular_diseases+cpd+ctd+pud+mild_liver+sev_liver+hemiplegia+sev_renal+diabetes_noeod+diabetes_eod+ cancer+alcohol +drug+wardtype+InvasiveHistory +MedicationHistory+HealthcareHistory + hospitaltype+ICD_Circulatory + ICD_Genitourinary + ICD_IDIntestinal + ICD_IDOther + ICD_Neoplasms+ICD_Respiratory+ICD_Digestive+
-                            (1 | hospital)  #not include heart_diseases and dementia yet -
+mixed_formula <- CRE_carriage ~ age_s +gender+smoking2+children2+married+ambulatory+
+  job_farmer+job_housewife+job_retired+cormobidity+
+  vascular_diseases+cpd+ctd+pud+mild_liver+sev_liver+hemiplegia+sev_renal+diabetes_noeod+diabetes_eod+cancer+
+  alcohol +drug+wardtype+InvasiveHistory +MedicationHistory+HealthcareHistory + hospitaltype+ Ab_history+
+  ICD_Circulatory + ICD_Genitourinary + ICD_IDIntestinal + ICD_IDOther +
+  ICD_Neoplasms+ICD_Respiratory+ICD_Digestive +( 1| SITEID) #not include heart_diseases and dementia yet -
 
-simple_mixed_model <- glmer(mixed_formula, data = riskdata_scaled, family = binomial(link = "logit"))
+
+simple_mixed_model <- glmer(mixed_formula, data = data_clean, family = binomial(link = "logit"))
+summary(simple_mixed_model)
 initial_fixed_estimates <- fixef(simple_mixed_model)
 initial_random_estimates <- ranef(simple_mixed_model)
-VarCorr(simple_mixed_model)
-
-Delta.start<-c(as.numeric(initial_fixed_estimates),rep(0,6),
+Delta.start<-c(as.numeric(initial_fixed_estimates),rep(0,100),
                as.numeric(initial_random_estimates))
 Q.start<-as.numeric(VarCorr(simple_mixed_model))
 
 ```
 
 
-```{r Fit Model using glmmLasso}
-## Fit the Model using glmmLasso: 
-## find best lambda
+```{r find best lambda for glmmLasso}
 
 # Define a sequence of lambda values (from high penalty to low)
-lambda_seq <- seq(50, 0, by = -1)
+lambda_seq <- seq(10, 0, by = -0.1)
+
+#fixed formula
+fixed_formula <- CRE_carriage ~ age_s +gender+smoking2+children2+married+ambulatory+
+  job_farmer+job_housewife+job_retired+cormobidity+
+  vascular_diseases+cpd+ctd+pud+mild_liver+sev_liver+hemiplegia+sev_renal+diabetes_noeod+diabetes_eod+cancer+
+  alcohol +drug+wardtype+InvasiveHistory +MedicationHistory+HealthcareHistory + hospitaltype+ Ab_history+
+  ICD_Circulatory + ICD_Genitourinary + ICD_IDIntestinal + ICD_IDOther +
+  ICD_Neoplasms+ICD_Respiratory+ICD_Digestive
 
 # Initialize a vector to store BIC or AIC values
 baic_vec <- rep(Inf, length(lambda_seq))
@@ -136,7 +143,7 @@ for(j in 1:length(lambda_seq)){
   print(paste("Testing Lambda:", lambda_seq[j]))
   #Use try() to prevent the loop from breaking if one model fails to converge
   glmm_temp <- try(glmmLasso(
-    fix = formula_fixed,
+    fix = fixed_formula,
     rnd = list(hospital=~1),
     data = data_clean,
     lambda = lambda_seq[j],
@@ -157,7 +164,6 @@ print(paste("Optimal Lambda is:", opt_lambda))
 
 baic_vec
 
-
 failed_indices <- which(is.infinite(baic_vec))
 print(lambda_seq[failed_indices])
 
@@ -169,18 +175,24 @@ print(lambda_seq[failed_indices])
 #fit model
 
 CRE_admission_model <- glmmLasso(
-  fix=mixed_formula,
+  fix=fixed_formula,
   rnd=list(hospital = ~1),
   data = data_clean,
-  lambda = 10, # larger -> stronger regularization and more coefficients shrunk to zero; smaller reduces penalty
+  lambda = opt_lambda, # larger -> stronger regularization and more coefficients shrunk to zero; smaller reduces penalty
   family = binomial(link = logit),
   switch.NR=FALSE, # switch to the faster Newton-Raphson method to speed up model fitting process
   final.re=TRUE,
-  control=list(start=Delta.start,q_start=Q.start))
+  control=list(start=Delta.start,q_start=Q.start)
+  )
 
 CRE_admission_model %>% summary()
+model_summary <- summary(CRE_admission_model)
 
-
+#extract OR and 95%CI
+std_errors <- model_summary$coefficients[, "StdErr"]; 
+tab <- cbind(Est = coef(CRE_admission_model), LL = coef(CRE_admission_model) - 1.96 * std_errors, UL = coef(CRE_admission_model) + 1.96 *std_errors); 
+exp(tab)
+round(cbind(exp(tab),p=coef(summary(CRE_admission_model))[,4]),digits = 3) #p-value
 
 
 ```

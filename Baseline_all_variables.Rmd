@@ -72,6 +72,15 @@ CRKP_discharge <- CRE_discharge %>%
   select(USUBJID, SPEC_DATE)
 CRKP_discharge <- CRKP_discharge[!duplicated(CRKP_discharge$USUBJID),]
 
+write.csv(CREC_admission, file = "CREC_admission.csv")
+write.csv(CREC_discharge, file = "CREC_discharge.csv")
+write.csv(CRKP_admission, file = "CRKP_admission.csv")
+write.csv(CRKP_discharge, file = "CRKP_discharge.csv")
+
+saveRDS(CREC_admission, file = "CREC_admission.rds")
+saveRDS(CREC_discharge, file = "CREC_discharge.rds")
+saveRDS(CRKP_admission, file = "CRKP_admission.rds")
+saveRDS(CRKP_discharge, file = "CRKP_discharge.rds")
 ```
 
 ```{r Admission}
@@ -246,6 +255,9 @@ all_data<- merge(all_data, discharge[,c("USUBJID","ICDGroup","ICUduration","CVCd
                                         "DISCHARGE","ICU","CVC","PVC","UC","IID")], by = "USUBJID", all=T )
 all_data<- merge(all_data, antibiotic_hospital[, c("USUBJID","antibiotic_hospital")], by = "USUBJID", all=T )
 all_data<- merge(all_data, antibiotic_hospital_DOT, by = "USUBJID", all=T )
+
+write.csv(all_data, file = "all_data.csv")
+saveRDS(all_data, file = "all_data.rds")
 
 # to add CRE data depending on type of carriage examined for further analysis
 ```
