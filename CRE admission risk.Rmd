@@ -14,10 +14,10 @@ output:
     
 ---
 # Constants
-```{r data}
+```{r constants}
 
-path2data <- paste0("/Users/", Sys.getenv("USER"), "OneDrive - Oxford University Clinical Research Unit","60HN/")
-
+##still do not know how to do this effectively.
+path2data <- "C:/Users/huongvtl/OneDrive - Oxford University Clinical Research Unit/60HN CRE transmission manuscript/"
 
 ```
 
@@ -39,17 +39,11 @@ require(boot)
 require(lattice)
 ```
 
-# Data sources
-```{ source data}
 
-```
+# Prepare risk datasets
 
-# Variables
+```{r risk datasets}
 
-```{r datasets}
-## specify risk dataset
-all_data <- readRDS("all_data.rds")
-CREC_admission <- readRDS("CREC_admission.rds")
 riskdata <- merge(all_data, CREC_admission, by ="USUBJID", all=T )
 riskdata <- riskdata %>%
   mutate(CRE_carriage = ifelse(is.na(SPEC_DATE), 0, 1),
@@ -71,16 +65,9 @@ riskdata <- riskdata %>%
          ICD_Respiratory = as.factor(ifelse(ICDGroup == "Respiratory diseases", "Respiratory diseases", "allothers")),
          )
 
-## if need to know the bacterium, use the following dataset
-##CRE_organism <- CRE_admission %>%
-##  pivot_wider(
-##    names_from = Identification_MALDITOF,
-##    values_from = SPEC_DATE,
-##    id_cols = USUBJID
-##  )
-
 ```
 
+# Prepare variables
 
 ```{r scaling and fixing data for Lasso}
 ###standardize predictor variables before Lasso regression because the penalty is applied to the magnitude of coefficients; standardizing (to mean 0, std dev 1) ensures all variables are treated equally, allowing for meaningful coefficient comparison and selection based on true predictive power, not scale.
@@ -117,7 +104,7 @@ data_clean <- riskdata_scaled[complete.cases(riskdata_scaled[,vars_to_keep]),]
 
 print(nrow(riskdata_scaled) - nrow(data_clean)) # Check how many rows you lost
 ```
-
+# Fit a simple glmm model
 
 ```{r fit a simple model glmm}
 
@@ -139,6 +126,7 @@ Q.start<-as.numeric(VarCorr(simple_mixed_model))
 
 ```
 
+# Find the best lambda for glmmLasso
 
 ```{r find best lambda for glmmLasso}
 
@@ -189,8 +177,9 @@ print(lambda_seq[failed_indices])
 
 ```
 
+# Fit the final Lasso model
+
 ```{r fit model}
-#fit model
 
 CRE_admission_model <- glmmLasso(
   fix=fixed_formula,
@@ -206,10 +195,15 @@ CRE_admission_model <- glmmLasso(
 CRE_admission_model %>% summary()
 model_summary <- summary(CRE_admission_model)
 
-#extract OR and 95%CI
+```
+
+# Final estimates
+
+``` {r extract ORs and 95%CI}
+
 std_errors <- model_summary$coefficients[, "StdErr"]; 
 tab <- cbind(Est = coef(CRE_admission_model), LL = coef(CRE_admission_model) - 1.96 * std_errors, UL = coef(CRE_admission_model) + 1.96 *std_errors); 
-exp(tab)
+
 round(cbind(exp(tab),p=coef(summary(CRE_admission_model))[,4]),digits = 3) #p-value
 
 
