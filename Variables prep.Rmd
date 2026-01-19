@@ -1,0 +1,736 @@
+---
+title: "Variables"
+author: "Vu Thi Lan Huong"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 2
+    number_sections: yes
+    toc_float:
+      collapsed: no
+      smooth_scroll: yes
+  pdf_document: default
+---
+# Constants
+```{r constants}
+
+path2data <- "C:/Users/huongvtl/OneDrive - Oxford University Clinical Research Unit/60HN CRE transmission manuscript/"
+
+
+```
+
+# Packages
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(dplyr)
+require(readxl)
+require(gmodels)
+require(lsmeans)
+
+```
+
+# Functions
+
+``` {r functions}
+
+'%ni%' <- Negate('%in%')
+
+readxl_allsheet <- function(filename, tibble = FALSE) {
+    # I prefer straight data.frames
+    # but if you like tidyverse tibbles (the default with read_excel)
+    # then just pass tibble = TRUE
+    sheets <- readxl::excel_sheets(filename)
+    x <- lapply(sheets, function(X) readxl::read_excel(filename, sheet = X))
+    if(!tibble) x <- lapply(x, as.data.frame)
+    names(x) <- sheets
+    x
+}
+```
+
+# Data
+
+```{r load data}
+
+survey <- readxl_allsheet("C:/Users/huongvtl/OneDrive - Oxford University Clinical Research Unit/60HN CRE transmission manuscript/16-12-2025-_60HN_PATIENT_P1_Data.xls")
+
+cre <- read_excel("C:/Users/huongvtl/OneDrive - Oxford University Clinical Research Unit/60HN CRE transmission manuscript/60HN_ID_MALDITOF_confirmation_20251128.xlsx")
+
+discharge_date <- read_excel("C:/Users/huongvtl/OneDrive - Oxford University Clinical Research Unit/60HN CRE transmission manuscript/60HN - DischargeDate_no_discharge_sample_27Nov25.xlsx")
+
+```
+
+
+```{r cre carriage and species}
+
+CRE_admission <- subset(cre, cre$SampleSchedule =='ADMISSION'); 
+CRE_admission <- CRE_admission %>%
+  filter(Identification_MALDITOF %ni% c('Aeromonas caviae', 'Aeromonas hydrophila','Aeromonas veronii', 'Enterococcus faecium'))
+
+CRE_discharge <- subset(cre, cre$SampleSchedule =='DISCHARGE')
+CRE_discharge <- CRE_discharge %>%
+  filter(Identification_MALDITOF %ni% c('Acinetobacter baumannii', 'Aeromonas caviae',
+                                        'Aeromonas hydrophila', 'Aeromonas veronii',
+                                        "Cupriavidus gilardii", "Enterococcus faecium",
+                                        "Pseudomonas putida"))
+
+
+length(unique(CRE_admission$USUBJID)); length(unique(CRE_discharge$USUBJID))
+## provincial hospitals 159, 010
+
+
+CRE_admission$hospitaltype<- ifelse(CRE_admission$SiteID %in% c('010','159'), 1, 2)
+CRE_discharge$hospitaltype<- ifelse(CRE_discharge$SiteID %in% c('010','159'), 1, 2)
+
+CRE_admission_provincial<- subset(CRE_admission, CRE_admission$hospitaltype==1)
+CRE_admission_district<- subset(CRE_admission, CRE_admission$hospitaltype==2)
+length(unique(CRE_admission_provincial$USUBJID)); length(unique(CRE_admission_provincial$USUBJID))/length(unique(CRE_admission$USUBJID)); 
+length(unique(CRE_admission_district$USUBJID)); length(unique(CRE_admission_district$USUBJID))/length(unique(CRE_admission$USUBJID)); 
+
+CRE_discharge_provincial<- subset(CRE_discharge, CRE_discharge$hospitaltype==1)
+CRE_discharge_district<- subset(CRE_discharge, CRE_discharge$hospitaltype==2)
+length(unique(CRE_discharge_provincial$USUBJID)); length(unique(CRE_discharge_provincial$USUBJID))/length(unique(CRE_discharge$USUBJID))
+length(unique(CRE_discharge_district$USUBJID)); length(unique(CRE_discharge_district$USUBJID))/length(unique(CRE_discharge$USUBJID))
+
+
+## subset to specific CREC or CRKP
+CREC_admission <- CRE_admission %>%
+  filter(Identification_MALDITOF == "Escherichia coli") %>%
+  select(USUBJID, SPEC_DATE)
+CREC_admission <- CREC_admission[!duplicated(CREC_admission$USUBJID),]
+
+CREC_discharge <- CRE_discharge %>%
+  filter(Identification_MALDITOF == "Escherichia coli") %>%
+  select(USUBJID, SPEC_DATE)
+CREC_discharge <- CREC_discharge[!duplicated(CREC_discharge$USUBJID),]
+
+
+CRKP_admission <- CRE_admission %>%
+  filter(Identification_MALDITOF == "Klebsiella pneumoniae") %>%
+  select(USUBJID, SPEC_DATE)
+CRKP_admission <- CRKP_admission[!duplicated(CRKP_admission$USUBJID),]
+
+CRKP_discharge <- CRE_discharge %>%
+  filter(Identification_MALDITOF == "Klebsiella pneumoniae") %>%
+  select(USUBJID, SPEC_DATE)
+CRKP_discharge <- CRKP_discharge[!duplicated(CRKP_discharge$USUBJID),]
+
+```
+
+```{r Admission}
+survey[["ADM"]] <- survey[["ADM"]] %>% filter(entry ==2) %>%
+  mutate(hospitaltype = ifelse(SITEID %in% c('010','159'), 1, 2),
+         age = 2025-YEAR_BIRTH +1,
+         Ab_history = ifelse(ANB_ADMISSION %in% c(1,4),0,1),
+         wardtype = as.factor(ifelse(WARD_3==1, "surgical", "medical/ID")))
+
+survey[["SCR"]] <- survey[["SCR"]]%>% filter(entry==2) %>%
+  mutate(discharge_date = SPEC_DATE_DISCHARGE) 
+
+discharge_date <-merge(discharge_date,survey[["SCR"]], by = 'USUBJID', all = T )
+
+discharge_date <- discharge_date %>%
+  mutate(DISCHARGE_DATE = ifelse(is.na(discharge_date), `Discharge date`,discharge_date)) %>%
+  select(USUBJID, DISCHARGE_DATE)
+
+admission <- merge(survey[["ADM"]],discharge_date, by = 'USUBJID', all = T )
+admission <- admission %>%
+  mutate(los = as.numeric((as.POSIXct(DISCHARGE_DATE) - as.POSIXct(ADMISSION_DATE))/86400+1))
+
+
+# admission of CRE
+#CREC
+admission_CREC_admission <- merge(CREC_admission, admission, by = 'USUBJID', all = T)
+admission_CREC_admission$CRE_admission <- ifelse(is.na(admission_CREC_admission$SPEC_DATE), 0, 1) #to identify those with CRE (here only CREC)
+
+
+admission_CREC_discharge <- merge(CREC_discharge, admission, by = 'USUBJID', all = T)
+admission_CREC_discharge$CRE_discharge <- ifelse(is.na(admission_CREC_discharge$SPEC_DATE), 0, 1)
+
+#CRKP
+admission_CRKP_admission <- merge(CRKP_admission, admission, by = 'USUBJID', all = T)
+admission_CRKP_admission$CRE_admission <- ifelse(is.na(admission_CRKP_admission$SPEC_DATE), 0, 1)
+
+
+admission_CRKP_discharge <- merge(CRKP_discharge, admission, by = 'USUBJID', all = T)
+admission_CRKP_discharge$CRE_discharge <- ifelse(is.na(admission_CRKP_discharge$SPEC_DATE), 0, 1)
+
+
+## get group mean and 95%CI, and difference test stats
+
+Admission_doubleEntry <- read_excel('Admission.xlsx')
+Admission <- subset(Admission_doubleEntry, Admission_doubleEntry$entry == 2)
+Admission$hospitaltype <- ifelse(Admission$SITEID %in% c('010','159'), 1, 2)
+Admission_provincial<- subset(Admission, Admission$hospitaltype==1)
+Admission_district<- subset(Admission, Admission$hospitaltype==2)
+
+Admission$age <- 2025-Admission$YEAR_BIRTH+1
+
+Admission$time_difference_days <- difftime(Admission$ADMISSION_DATE, Admission$ENROLLMENT_DATE, units = 'days')
+## ward 1= M, ward 2 = ID, ward 3 = S (if mixed, both were ticked)
+
+## Charlson score - 19 items- https://pubmed.ncbi.nlm.nih.gov/34991091/; https://www.sciencedirect.com/science/article/abs/pii/0021968187901718?via%3Dihub
+Admission$CharlsonScore <- Admission$
+  MI_HIS+Admission$CHF+Admission$PVD+Admission$CVD+
+  Admission$DEMENTIA+
+  Admission$CPD+Admission$CTD+
+  Admission$PUD+
+  Admission$MILD_LIVER+3*Admission$SEV_LIVER+
+  2*Admission$HEMIPLEGIA+
+  2*Admission$SEV_RENAL+
+  Admission$DIAB_NOEOD+2*Admission$DIAB_EOD+
+  2*Admission$TUMOR_NOMETA+2*Admission$LEUKEMIA+2*Admission$LYMPHOMA+6*Admission$META_TUMOR+
+  6*Admission$AIDS
+
+## https://pmc.ncbi.nlm.nih.gov/articles/PMC6929451/
+Admission$age_cat_Charlson <- ifelse(Admission$age %in% c(50:59),1,0)
+Admission$age_cat_Charlson <- ifelse(Admission$age %in% c(60:69),2,Admission$age_cat_Charlson)
+Admission$age_cat_Charlson <- ifelse(Admission$age %in% c(70:79),3,Admission$age_cat_Charlson)
+Admission$age_cat_Charlson <- ifelse(Admission$age >=80,4,Admission$age_cat_Charlson)
+
+Admission$CharlsonScore_ageadjusted <- ifelse(Admission$age_cat_Charlson == 1, Admission$CharlsonScore + 1, Admission$CharlsonScore)
+Admission$CharlsonScore_ageadjusted <- ifelse(Admission$age_cat_Charlson == 2, Admission$CharlsonScore + 2, Admission$CharlsonScore_ageadjusted)
+Admission$CharlsonScore_ageadjusted <- ifelse(Admission$age_cat_Charlson == 3, Admission$CharlsonScore + 3, Admission$CharlsonScore_ageadjusted)
+Admission$CharlsonScore_ageadjusted <- ifelse(Admission$age_cat_Charlson == 4, Admission$CharlsonScore + 4, Admission$CharlsonScore_ageadjusted)
+
+Admission$Ab_history <- ifelse(Admission$ANB_ADMISSION %in% c(1,4),0,1)
+
+###Pitt score
+Admission$FEVER_score <- ifelse(Admission$FEVER ==1, 2, 0)
+Admission$FEVER_score <- ifelse(Admission$FEVER ==2, 1, Admission$FEVER_score)
+#Admission$HYPOTENSION_score <- ifelse(Admission$HYPOTENSION ==1, 2, 0)
+Admission$HYPOTENSION_score <- 0
+#Admission$MECHANICAL_VENT_score <- ifelse(Admission$MECHANICAL_VENT ==1, 2, 0)
+Admission$MECHANICAL_VENT_score <- 0
+Admission$CARDIAC_score <- ifelse(Admission$CARDIAC ==1, 4, 0)
+Admission$MENTAL_score <- ifelse(Admission$MENTAL ==4, 4, 0)
+Admission$MENTAL_score <- ifelse(Admission$MENTAL ==3, 2, Admission$MENTAL_score)
+Admission$MENTAL_score <- ifelse(Admission$MENTAL ==2, 1, Admission$MENTAL_score)
+Admission$PittScore <- Admission$FEVER_score+Admission$HYPOTENSION_score+Admission$MECHANICAL_VENT_score+Admission$CARDIAC_score+Admission$MENTAL_score
+Admission$wardtype <- ifelse(Admission$WARD_3==1, "surgical", "medical/ID")
+
+#Add Discharge date:
+Screening_doubleEntry <- read_excel("Screening.xlsx")
+Screening <- subset(Screening_doubleEntry, Screening_doubleEntry$entry == 2)
+Screening <- Screening %>%
+  select(USUBJID, SPEC_DATE_ADMISSION, SPEC_DATE_DISCHARGE)
+
+Patients_losttofollowup <- read_excel("60HN - DischargeDate_no_discharge_sample_27Nov25.xlsx")
+HospitalLOS <- Screening %>%
+  mutate(Discharge_date = as.Date.POSIXct(ifelse(is.na(SPEC_DATE_DISCHARGE), Patients_losttofollowup$`Discharge date`, SPEC_DATE_DISCHARGE))) 
+
+Admission <- merge (Admission, Screening %>% select(USUBJID, SPEC_DATE_ADMISSION, SPEC_DATE_DISCHARGE), by = "USUBJID", all=T)
+Admission <- merge (Admission, Patients_losttofollowup %>% select(USUBJID, `Discharge date`), by = "USUBJID", all=T)
+Admission <- Admission %>%
+  mutate(Discharge_date = as.Date.POSIXct(ifelse(is.na(SPEC_DATE_DISCHARGE), `Discharge date`, SPEC_DATE_DISCHARGE))) %>%
+  mutate(los = as.numeric(Discharge_date-as.Date.POSIXct(ADMISSION_DATE) +1),
+         admission_enrolment_time = as.numeric(as.Date.POSIXct(SPEC_DATE_ADMISSION) - as.Date.POSIXct(ADMISSION_DATE)) +1)
+
+
+# Admission of CRE
+Admission_CRE_admission <- merge(CRE_admission_patients, Admission, by = 'USUBJID', all = T)
+Admission_CRE_admission$CRE_admission <- ifelse(is.na(Admission_CRE_admission$SPEC_DATE), 0, 1)
+
+
+Admission_CRE_discharge <- merge(CRE_discharge_patients, Admission, by = 'USUBJID', all = T)
+Admission_CRE_discharge$CRE_discharge <- ifelse(is.na(Admission_CRE_discharge$SPEC_DATE), 0, 1)
+
+
+## Admission of CREC and CRKP
+Admission_CREC_admission <- merge(CREC_admission, Admission, by = 'USUBJID', all = T)
+Admission_CREC_admission$CRE_admission <- ifelse(is.na(Admission_CREC_admission$SPEC_DATE), 0, 1)
+
+
+Admission_CREC_discharge <- merge(CREC_discharge, Admission, by = 'USUBJID', all = T)
+Admission_CREC_discharge$CRE_discharge <- ifelse(is.na(Admission_CREC_discharge$SPEC_DATE), 0, 1)
+
+Admission_CRKP_admission <- merge(CRKP_admission, Admission, by = 'USUBJID', all = T)
+Admission_CRKP_admission$CRE_admission <- ifelse(is.na(Admission_CRKP_admission$SPEC_DATE), 0, 1)
+
+
+Admission_CRKP_discharge <- merge(CRKP_discharge, Admission, by = 'USUBJID', all = T)
+Admission_CRKP_discharge$CRE_discharge <- ifelse(is.na(Admission_CRKP_discharge$SPEC_DATE), 0, 1)
+
+
+## get group mean and 95%CI, and difference test stats
+
+test_dataset<- Admission_CRKP_discharge
+anova_result <- aov(ONSET_DAYS~CRE_discharge, data=test_dataset); summary(anova_result)
+lsmeans(anova_result, ~CRE_discharge); 
+t.test(test_dataset$ONSET_DAYS); summary(subset(test_dataset, test_dataset$CRE_discharge==1)$ONSET_DAYS,nr.rm=T)
+
+
+```
+
+
+
+
+```{r Other datasets}
+##General information
+survey[["DEMO_HIS"]] <- survey[["DEMO_HIS"]] %>% filter(entry ==2) %>%
+  mutate(JOB_final= case_when(JOB_SPECIFY %in% c("Cán bộ công chức", "Cán bộ xã") ~ 1,
+            JOB_SPECIFY %in% c("Bảo vệ", "Cơ khí","Hộ lý", "Lái tàu thủy", "Lao động tự do","Vệ sỹ") ~ 4,
+            JOB_SPECIFY %in% c("già", "Già","Hết độ tuổi lao động") ~ 8,
+            JOB_SPECIFY %in% c("Ở nhà", "Tự do") ~ 9,
+            .default = as.numeric(JOB)),
+         householdsize = ADULT+CHILDREN,
+         ALCOHOL_CUTDOWN_score = ifelse(ALCOHOL_CUTDOWN == 1, 0, 1),
+         ALCOHOL_ANNOYED_score = ifelse(ALCOHOL_ANNOYED == 1, 0, 1),
+         ALCOHOL_GUILTY_score = ifelse(ALCOHOL_GUILTY == 1, 0, 1),
+         ALCOHOL_DRUG_score = ifelse(ALCOHOL_DRUG == 1, 0, 1),
+         DRUG_CUTDOWN_score = ifelse(DRUG_CUTDOWN == 1, 0, 1),
+         DRUG_ANNOYED_score = ifelse(DRUG_ANNOYED == 1, 0, 1),
+         DRUG_GUILTY_score = ifelse(DRUG_GUILTY == 1, 0, 1),
+         DRUG_DRUG_score = ifelse(DRUG_DRUG == 1, 0, 1),
+         smoking = as.factor(ifelse(SMOKING == 1, "current smoker", ifelse(SMOKING == 2, "former smoker", "all non-smokers"))),
+         children = as.factor(ifelse(CHILDREN == 0, "no children in the household", "with children in the household")),
+         married = as.factor(ifelse(MARITAL ==1, "married", "other")),
+         ambulatory = as.factor(ifelse(AMBULATORY == 1, "independent", "not independent"))
+         )
+
+survey[["DEMO_HIS"]] <- survey[["DEMO_HIS"]] %>% filter(entry ==2) %>%
+  mutate(
+    AlcoholCAGE = ALCOHOL_CUTDOWN_score+ALCOHOL_ANNOYED_score+ALCOHOL_GUILTY_score+ALCOHOL_DRUG_score, 
+    DrugCAGE= DRUG_CUTDOWN_score+DRUG_ANNOYED_score+DRUG_GUILTY_score+DRUG_DRUG_score,
+    job = as.factor(ifelse(JOB_final== 6, "farmer",ifelse(JOB_final== 7,"housewife",ifelse(JOB_final == 8, "retired", "all other jobs")))),
+    )
+
+survey[["DEMO_HIS"]] <- survey[["DEMO_HIS"]] %>% filter(entry ==2) %>%
+  mutate(
+    alcohol = as.factor(ifelse(AlcoholCAGE == 0, "0 problem", "1-4 problem")),
+    drug = as.factor(ifelse(DrugCAGE == 0, "0 problem", "1-4 problem"))
+  )
+
+## Other history
+InvasiveHistory <- survey[["DEMO_HIS_HISTORY_GRID"]] %>% filter(entry ==2) %>%
+  filter(HIS_CONDITION ==1) %>%
+  mutate(InvasiveHistory=as.factor(ifelse(HIS_YN == 2, 'Yes', 'No')))
+         
+MedicationHistory <- survey[["DEMO_HIS_HISTORY_GRID"]] %>% filter(entry ==2) %>%
+  filter(HIS_CONDITION ==2)%>%
+  mutate(MedicationHistory=as.factor(ifelse(HIS_YN == 2, 'Yes', 'No')))
+
+TravelHistory <- survey[["DEMO_HIS_HISTORY_GRID"]] %>% filter(entry ==2) %>%
+  filter(HIS_CONDITION ==3)%>%
+  mutate(TravelHistory=as.factor(ifelse(HIS_YN == 2, 'Yes', 'No')))
+
+HealthcareHistory <- survey[["DEMO_HIS_HISTORY_GRID"]] %>% filter(entry ==2) %>%
+  filter(HIS_CONDITION ==4)%>%
+  mutate(HealthcareHistory=as.factor(ifelse(HIS_YN == 2, 'Yes', 'No')))
+
+#Discharge
+
+discharge <- survey[["DIS"]] %>% filter(entry ==2) %>%
+  mutate(
+    ICDGroup = as.factor(case_when(
+
+
+##General information
+GenInfo_doubleEntry <- read_excel('GenInfo.xlsx')
+GenInfo <- subset(GenInfo_doubleEntry, GenInfo_doubleEntry$entry == 2)
+
+GenInfo <- GenInfo %>% mutate(JOB_final= case_when(JOB_SPECIFY %in% c("Cán bộ công chức", "Cán bộ xã") ~ 1,
+            JOB_SPECIFY %in% c("Bảo vệ", "Cơ khí","Hộ lý", "Lái tàu thủy", "Lao động tự do","Vệ sỹ") ~ 4,
+            JOB_SPECIFY %in% c("già", "Già","Hết độ tuổi lao động") ~ 8,
+            JOB_SPECIFY %in% c("Ở nhà", "Tự do") ~ 9,
+            .default = as.numeric(JOB)
+            ))
+  
+GenInfo$JOB_final<-  ifelse(GenInfo$JOB_SPECIFY %in% c('Cán bộ công chức', 'Cán bộ xã'), 1, GenInfo$JOB)
+GenInfo$JOB_final<- ifelse(GenInfo$JOB_SPECIFY %in% c('Bảo vệ', 'Cơ khí','Hộ lý', 'Lái tàu thủy', 'Lao động tự do','Vệ sỹ'), 4, GenInfo$JOB_final)
+GenInfo$JOB_final<- ifelse(GenInfo$JOB_SPECIFY %in% c('già', 'Già','Hết độ tuổi lao động'), 8, GenInfo$JOB_final)
+GenInfo$JOB_final<- ifelse(GenInfo$JOB_SPECIFY %in% c('Ở nhà', 'Tự do'), 9, GenInfo$JOB_final)
+
+GenInfo$householdsize <- GenInfo$ADULT + GenInfo$CHILDREN
+GenInfo$ALCOHOL_CUTDOWN_score <- ifelse(GenInfo$ALCOHOL_CUTDOWN == 1, 0, 1)
+GenInfo$ALCOHOL_ANNOYED_score <- ifelse(GenInfo$ALCOHOL_ANNOYED == 1, 0, 1)
+GenInfo$ALCOHOL_GUILTY_score <- ifelse(GenInfo$ALCOHOL_GUILTY == 1, 0, 1)
+GenInfo$ALCOHOL_DRUG_score <- ifelse(GenInfo$ALCOHOL_DRUG == 1, 0, 1)
+GenInfo$AlcoholCAGE<- GenInfo$ALCOHOL_CUTDOWN_score+GenInfo$ALCOHOL_ANNOYED_score+GenInfo$ALCOHOL_GUILTY_score+GenInfo$ALCOHOL_DRUG_score
+
+GenInfo$DRUG_CUTDOWN_score <- ifelse(GenInfo$DRUG_CUTDOWN == 1, 0, 1)
+GenInfo$DRUG_ANNOYED_score <- ifelse(GenInfo$DRUG_ANNOYED == 1, 0, 1)
+GenInfo$DRUG_GUILTY_score <- ifelse(GenInfo$DRUG_GUILTY == 1, 0, 1)
+GenInfo$DRUG_DRUG_score <- ifelse(GenInfo$DRUG_DRUG == 1, 0, 1)
+GenInfo$DrugCAGE <- GenInfo$DRUG_CUTDOWN_score+GenInfo$DRUG_ANNOYED_score+GenInfo$DRUG_GUILTY_score+GenInfo$DRUG_DRUG_score
+
+GenInfo <- within(GenInfo, {
+  job <- as.factor(ifelse(JOB_final== 6, "farmer",ifelse(JOB_final== 7,"housewife",ifelse(JOB_final == 8, "retired", "all other jobs"))))
+  smoking <- as.factor(ifelse(SMOKING == 1, "current smoker", ifelse(SMOKING == 2, "former smoker", "all non-smokers")))
+  children<- as.factor(ifelse(CHILDREN == 0, "no children in the household", "with children in the household"))
+  married <- as.factor(ifelse(MARITAL ==1, "married", "other"))
+  alcohol <- as.factor(ifelse(AlcoholCAGE == 0, "0 problem", "1-4 problem"))
+  drug <- as.factor(ifelse(DrugCAGE == 0, "0 problem", "1-4 problem"))
+  ambulatory <- as.factor(ifelse(AMBULATORY == 1, "independent", "not independent"))
+})
+
+## merge with CRE
+GenInfo_CRE_admission <- merge(CRE_admission_patients, GenInfo, by = 'USUBJID', all = T)
+GenInfo_CRE_admission$CRE_admission <- ifelse(is.na(GenInfo_CRE_admission$SPEC_DATE), 0, 1)
+
+
+GenInfo_CRE_discharge <- merge(CRE_discharge_patients, GenInfo, by = 'USUBJID', all = T)
+GenInfo_CRE_discharge$CRE_discharge <- ifelse(is.na(GenInfo_CRE_discharge$SPEC_DATE), 0, 1)
+
+GenInfo_CREC_admission <- merge(CREC_admission, GenInfo, by = 'USUBJID', all = T)
+GenInfo_CREC_admission$CRE_admission <- ifelse(is.na(GenInfo_CREC_admission$SPEC_DATE), 0, 1)
+
+
+GenInfo_CREC_discharge <- merge(CREC_discharge, GenInfo, by = 'USUBJID', all = T)
+GenInfo_CREC_discharge$CRE_discharge <- ifelse(is.na(GenInfo_CREC_discharge$SPEC_DATE), 0, 1)
+
+GenInfo_CRKP_admission <- merge(CRKP_admission, GenInfo, by = 'USUBJID', all = T)
+GenInfo_CRKP_admission$CRE_admission <- ifelse(is.na(GenInfo_CRKP_admission$SPEC_DATE), 0, 1)
+
+
+GenInfo_CRKP_discharge <- merge(CRKP_discharge, GenInfo, by = 'USUBJID', all = T)
+GenInfo_CRKP_discharge$CRE_discharge <- ifelse(is.na(GenInfo_CRKP_discharge$SPEC_DATE), 0, 1)
+
+
+## get group mean and 95%CI, and difference test stats
+require("lsmeans")
+test_dataset<- GenInfo_CRKP_discharge
+anova_result <- aov(EDUCATION~CRE_discharge, data=test_dataset); summary(anova_result)
+lsmeans(anova_result, ~CRE_discharge); 
+t.test(test_dataset$EDUCATION); summary(subset(test_dataset, test_dataset$CRE_discharge==1)$EDUCATION,nr.rm=T)
+
+
+##Ab history
+AbHistory_doubleEntry <- read_excel('AbHistory.xlsx')
+AbHistory <- subset(AbHistory_doubleEntry, AbHistory_doubleEntry$entry == 2)
+
+## Other history
+OtherHistory_doubleEntry <- read_excel('OtherHistory.xlsx')
+OtherHistory <- subset(OtherHistory_doubleEntry, OtherHistory_doubleEntry$entry == 2)
+
+InvasiveHistory <- subset(OtherHistory, OtherHistory$HIS_CONDITION ==1)
+InvasiveHistory$InvasiveHistory <- ifelse(InvasiveHistory$HIS_YN == 2, 'Yes', 'No')
+
+MedicationHistory <- subset(OtherHistory, OtherHistory$HIS_CONDITION ==2)
+MedicationHistory$MedicationHistory <- ifelse(MedicationHistory$HIS_YN == 2, 'Yes', 'No')
+
+TravelHistory <- subset(OtherHistory, OtherHistory$HIS_CONDITION ==3)
+TravelHistory$TravelHistory <- ifelse(TravelHistory$HIS_YN == 2, 'Yes', 'No')
+
+HealthcareHistory <- subset(OtherHistory, OtherHistory$HIS_CONDITION ==4)
+HealthcareHistory$HealthcareHistory <- ifelse(HealthcareHistory$HIS_YN == 2, 'Yes', 'No')
+
+#Other History in CRE patients
+OtherHistory_CRE_admission <- merge(CRE_admission, OtherHistory, by = 'USUBJID', all = T)
+OtherHistory_CRE_admission_patients <- OtherHistory_CRE_admission[, c(1:8, 19:28)]
+
+OtherHistory_CRE_discharge <- merge(CRE_discharge, OtherHistory, by = 'USUBJID', all = T)
+OtherHistory_CRE_discharge_patients <- OtherHistory_CRE_discharge[, c(1:8, 19:28)]
+
+#Split data-sets to examine each history condition
+
+#Invasive
+OtherHistory_CRE_admission_patients_invasive <- subset(OtherHistory_CRE_admission_patients, OtherHistory_CRE_admission_patients$HIS_CONDITION==1)
+OtherHistory_CRE_admission_patients_invasive <- OtherHistory_CRE_admission_patients_invasive[!duplicated(OtherHistory_CRE_admission_patients_invasive$USUBJID), ]
+OtherHistory_CRE_admission_patients_invasive$CRE_admission <- ifelse(is.na(OtherHistory_CRE_admission_patients_invasive$SPEC_NUM), 0, 1)
+OtherHistory_CRE_admission_patients_invasive_CREonly<- subset(OtherHistory_CRE_admission_patients_invasive, OtherHistory_CRE_admission_patients_invasive$CRE_admission==1)
+#
+OtherHistory_CRE_discharge_patients_invasive <- subset(OtherHistory_CRE_discharge_patients, OtherHistory_CRE_discharge_patients$HIS_CONDITION==1)
+OtherHistory_CRE_discharge_patients_invasive <- OtherHistory_CRE_discharge_patients_invasive[!duplicated(OtherHistory_CRE_discharge_patients_invasive$USUBJID), ]
+OtherHistory_CRE_discharge_patients_invasive$CRE_discharge <- ifelse(is.na(OtherHistory_CRE_discharge_patients_invasive$SPEC_NUM), 0, 1)
+OtherHistory_CRE_discharge_patients_invasive_CREonly<- subset(OtherHistory_CRE_discharge_patients_invasive, OtherHistory_CRE_discharge_patients_invasive$CRE_discharge==1)
+
+#Medications other than antibiotics
+OtherHistory_CRE_admission_patients_medications <- subset(OtherHistory_CRE_admission_patients, OtherHistory_CRE_admission_patients$HIS_CONDITION==2)
+OtherHistory_CRE_admission_patients_medications <- OtherHistory_CRE_admission_patients_medications[!duplicated(OtherHistory_CRE_admission_patients_medications$USUBJID), ]
+OtherHistory_CRE_admission_patients_medications$CRE_admission <- ifelse(is.na(OtherHistory_CRE_admission_patients_medications$SPEC_NUM), 0, 1)
+OtherHistory_CRE_admission_patients_medications_CREonly<- subset(OtherHistory_CRE_admission_patients_medications, OtherHistory_CRE_admission_patients_medications$CRE_admission==1)
+#
+OtherHistory_CRE_discharge_patients_medications <- subset(OtherHistory_CRE_discharge_patients, OtherHistory_CRE_discharge_patients$HIS_CONDITION==2)
+OtherHistory_CRE_discharge_patients_medications <- OtherHistory_CRE_discharge_patients_medications[!duplicated(OtherHistory_CRE_discharge_patients_medications$USUBJID), ]
+OtherHistory_CRE_discharge_patients_medications$CRE_discharge <- ifelse(is.na(OtherHistory_CRE_discharge_patients_medications$SPEC_NUM), 0, 1)
+OtherHistory_CRE_discharge_patients_medications_CREonly<- subset(OtherHistory_CRE_discharge_patients_medications, OtherHistory_CRE_discharge_patients_medications$CRE_discharge==1)
+
+#Previous travel overseas
+OtherHistory_CRE_admission_patients_travel <- subset(OtherHistory_CRE_admission_patients, OtherHistory_CRE_admission_patients$HIS_CONDITION==3)
+OtherHistory_CRE_admission_patients_travel <- OtherHistory_CRE_admission_patients_travel[!duplicated(OtherHistory_CRE_admission_patients_travel$USUBJID), ]
+OtherHistory_CRE_admission_patients_travel$CRE_admission <- ifelse(is.na(OtherHistory_CRE_admission_patients_travel$SPEC_NUM), 0, 1)
+OtherHistory_CRE_admission_patients_travel_CREonly<- subset(OtherHistory_CRE_admission_patients_travel, OtherHistory_CRE_admission_patients_travel$CRE_admission==1)
+#
+OtherHistory_CRE_discharge_patients_travel <- subset(OtherHistory_CRE_discharge_patients, OtherHistory_CRE_discharge_patients$HIS_CONDITION==3)
+OtherHistory_CRE_discharge_patients_travel <- OtherHistory_CRE_discharge_patients_travel[!duplicated(OtherHistory_CRE_discharge_patients_travel$USUBJID), ]
+OtherHistory_CRE_discharge_patients_travel$CRE_discharge <- ifelse(is.na(OtherHistory_CRE_discharge_patients_travel$SPEC_NUM), 0, 1)
+OtherHistory_CRE_discharge_patients_travel_CREonly<- subset(OtherHistory_CRE_discharge_patients_travel, OtherHistory_CRE_discharge_patients_travel$CRE_discharge==1)
+
+#Previous hospitalization
+OtherHistory_CRE_admission_patients_hospitalization <- subset(OtherHistory_CRE_admission_patients, OtherHistory_CRE_admission_patients$HIS_CONDITION==4)
+OtherHistory_CRE_admission_patients_hospitalization <- OtherHistory_CRE_admission_patients_hospitalization[!duplicated(OtherHistory_CRE_admission_patients_hospitalization$USUBJID), ]
+OtherHistory_CRE_admission_patients_hospitalization$CRE_admission <- ifelse(is.na(OtherHistory_CRE_admission_patients_hospitalization$SPEC_NUM), 0, 1)
+OtherHistory_CRE_admission_patients_hospitalization_CREonly<- subset(OtherHistory_CRE_admission_patients_hospitalization, OtherHistory_CRE_admission_patients_hospitalization$CRE_admission==1)
+#
+OtherHistory_CRE_discharge_patients_hospitalization <- subset(OtherHistory_CRE_discharge_patients, OtherHistory_CRE_discharge_patients$HIS_CONDITION==4)
+OtherHistory_CRE_discharge_patients_hospitalization <- OtherHistory_CRE_discharge_patients_hospitalization[!duplicated(OtherHistory_CRE_discharge_patients_hospitalization$USUBJID), ]
+OtherHistory_CRE_discharge_patients_hospitalization$CRE_discharge <- ifelse(is.na(OtherHistory_CRE_discharge_patients_hospitalization$SPEC_NUM), 0, 1)
+OtherHistory_CRE_discharge_patients_hospitalization_CREonly<- subset(OtherHistory_CRE_discharge_patients_hospitalization, OtherHistory_CRE_discharge_patients_hospitalization$CRE_discharge==1)
+
+## Other history of CREC and CRKP
+OtherHistory_CREC_admission <- OtherHistory_CRE_admission %>%
+  filter (Identification_MALDITOF == 'Escherichia coli')
+OtherHistory_CREC_discharge <- OtherHistory_CRE_discharge %>%
+  filter (Identification_MALDITOF == 'Escherichia coli')
+
+OtherHistory_CRKP_admission <- OtherHistory_CRE_admission %>%
+  filter (Identification_MALDITOF == 'Klebsiella pneumoniae')
+OtherHistory_CRKP_discharge <- OtherHistory_CRE_discharge %>%
+  filter (Identification_MALDITOF == 'Klebsiella pneumoniae')
+```
+
+
+```{r Discharge}
+
+##DISCHARGE OUTCOMES AND EVENTS DURING THIS ADMISSION
+
+Discharge_doubleEntry <- read_excel('Discharge.xlsx')
+Discharge <- subset(Discharge_doubleEntry, Discharge_doubleEntry$entry == 2)
+
+Discharge <- Discharge %>%
+  mutate(
+    ICDGroup = case_when(
+
+    FINAL_DIAG_ICD10 %in% c('A04','A04.8','A04.9','A05.9','A06.4','A08.0', 'A08.5','A09','A09.0', 'A09.9')~'ID (Intestinal)',
+    FINAL_DIAG_ICD10 %in% c('A15.0', 'A15.3', 'A16.2', 'A41', 'A41.5', 'A41.8', 'A41.9','A48','A49.9', 'A79.8','A79.9', 'A93', 'A94', 'A97','B00.1', 'B01','B01.2', 'B01.8', 'B02', 'B02.7', 'B02.8','B05', 'B05.2', 'B05.8', 'B05.9', 'B17', 'B18.1', 'B18.2', 'B34.9', 'B83.8') ~ 'ID (Other)',
+    FINAL_DIAG_ICD10 %in% c('C18', 'C18.9; K56.6', 'C20','C22','C22.9', 'C34.9', 'C41', 'C61', 'C67.9', 'C70.0','C91.9', 'C92.2', 'C95.0', 'D12.0', 'D17', 'D21', 'D21.9', 'D23', 'D23.9', 'D27','D37.4', 'D38.1', 'D40.0', 'D44.0', 'D48.1')~'Neoplasms',
+    FINAL_DIAG_ICD10 %in% c('I10', 'I10-E11-E25-I69', 'I10; H81', 'I11.9', 'I12.5', 'I18', 'I20', 'I20.0','I20.8','I21', 'I21.4', 'I21.9', 'I24.0', 'I25', 'I25.2', 'I25.5', 'I48', 'I48.0','I48.2','I50','I50.9','I61', 'I63','I63.8', 'I64','I67','I67-I10', 'I67 - I10','I69.4', 'I70.2', 'I80', 'I87.2','I88.8', 'I92.9', 'I95', 'I99') ~ 'Circulatory diseases',
+    FINAL_DIAG_ICD10 %in% c('J01','J01.9','J02','J02.9','J04.0','J06','J06.9','J09', 'J10.1','J10.8','J11','J11.1','J11.8', 'J15', 'J15.9', 'J16', 'J17.1', 'J18', 'J18-I20.2', 'J18.0', 'J18.1', 'J18.8', 'J18.9', 'J20', 'J20.9', 'J40', 'J42', 'J44', 'J44.0', 'J44.1', 'J44.9', 'J45', 'J90','J96.0', 'J96.9','J96/18') ~ 'Respiratory diseases',
+   FINAL_DIAG_ICD10 %in% c('K11.2','K12.3', 'K21', 'K21.0', 'K21.9', 'K22.6', 'K25', 'K25.0', 'K25.3', 'K25.9','K26.0', 'K27', 'K27-J20', 'K27.0', 'K27.3', 'K27.9', 'K29', 'K29.0', 'K29.1','K29.2','K29.6', 'K29.9','K30', 'K35', 'K35.1', 'K35.3','K35.5','K35.8', 'K35.9','K36', 'K40', 'K40.9', 'K42', 'K50', 'K52.3', 'K52.9', 'K56', 'K56.4', 'K56.6', 'K57.0', ' K57.3','K57.9','K58','K58.0', 'K59.1', 'K60.3', 'K61.0', 'K61.2', 'K62.1', 'K62.5', 'K63', 'K63.1','K63.5','K64', 'K64.2', 'K64.3', 'K64.8', 'K65', 'K71.2', 'K71.6', 'K72.0', 'K72.2', 'K73','K74', 'K74.0','K74.1','K74.2', 'K74.6', 'K75.8','K77','K78.6', 'K80', 'K80.0','K80.1','K80.2','K80.3','K80.4','K80.8', 'K81', 'K81.0','K83', 'K83.0','K85', 'K85.0', 'K85.8','K85.9', 'K86.1','K92','K92.2','K92.8','K92.9') ~ 'Digestive diseases',
+   FINAL_DIAG_ICD10 %in%  c('N00','N13.2','N13.3','N13.6','N17','N17.9','N18','N18.4','N18.5','N18.9','N19','N20','N20.0','N20.1','N20.1, N23, N20.0, K21, M47','N20.2','N21.0', 'N21.1','N23','N28','N30.0', 'N30.8','N32.0', 'N34.1', 'N39.0', 'N40', 'N43.2','N45', 'N47','N48.1','N70') ~ 'Genitourinary diseases',
+
+   TRUE ~ 'Other')),
+   ICUduration = difftime(ICU_TO, ICU_FROM, units = 'days')+1,
+   CVCduration = difftime(CVC_TO, CVC_FROM, units = 'days')+1,
+   PVCduration = difftime(PVC_TO, PVC_FROM, units = 'days')+1,
+   UCduration = difftime(UC_TO, UC_FROM, units = 'days')+1,
+   IIDduration = difftime(IID_TO, IID_FROM, units = 'days')+1
+   )
+
+   TRUE ~ 'Other'
+))
+
+
+Discharge$ICUduration <- difftime(Discharge$ICU_TO, Discharge$ICU_FROM, units = 'days')+1
+Discharge$CVCduration <- difftime(Discharge$CVC_TO, Discharge$CVC_FROM, units = 'days')+1
+Discharge$PVCduration <- difftime(Discharge$PVC_TO, Discharge$PVC_FROM, units = 'days')+1
+Discharge$UCduration <- difftime(Discharge$UC_TO, Discharge$UC_FROM, units = 'days')+1
+Discharge$IIDduration <- difftime(Discharge$IID_TO, Discharge$IID_FROM, units = 'days')+1
+
+
+## merge with CRE
+Discharge_CRE_admission <- merge(CRE_admission, Discharge, by = 'USUBJID', all = T)
+Discharge_CRE_admission_patients <- Discharge_CRE_admission[, c(1:8, 19:57)]
+Discharge_CRE_admission_patients <- Discharge_CRE_admission_patients[!duplicated(Discharge_CRE_admission_patients$USUBJID), ]
+Discharge_CRE_admission_patients$CRE_admission <- ifelse(is.na(Discharge_CRE_admission_patients$SPEC_NUM), 0, 1)
+Discharge_CRE_admission_patients_CREonly<- subset(Discharge_CRE_admission_patients, Discharge_CRE_admission_patients$CRE_admission==1) 
+
+Discharge_CRE_discharge <- merge(CRE_discharge, Discharge, by = 'USUBJID', all = T)
+Discharge_CRE_discharge_patients <- Discharge_CRE_discharge[, c(1:8, 19:57)]
+Discharge_CRE_discharge_patients <- Discharge_CRE_discharge_patients[!duplicated(Discharge_CRE_discharge_patients$USUBJID), ]
+Discharge_CRE_discharge_patients$CRE_discharge <- ifelse(is.na(Discharge_CRE_discharge_patients$SPEC_NUM), 0, 1)
+Discharge_CRE_discharge_patients_CREonly<- subset(Discharge_CRE_discharge_patients, Discharge_CRE_discharge_patients$CRE_discharge==1) 
+
+## Discharge of CREC and CRKP
+Discharge_CREC_admission <- Discharge_CRE_admission %>%
+  filter (Identification_MALDITOF == 'Escherichia coli')
+Discharge_CREC_discharge <- Discharge_CRE_discharge %>%
+  filter (Identification_MALDITOF == 'Escherichia coli')
+
+Discharge_CRKP_admission <- Discharge_CRE_admission %>%
+  filter (Identification_MALDITOF == 'Klebsiella pneumoniae')
+Discharge_CRKP_discharge <- Discharge_CRE_discharge %>%
+  filter (Identification_MALDITOF == 'Klebsiella pneumoniae')
+
+
+
+### patient ID 159-1-1-39 had CREC at admission, need to be admitted to ICU during hospital stay; continue to have CREC at discharge;
+### patient ID 010-1-1-27 did not have CRKP at admission, need to be admitted to ICU during hospital stay; and acquired CRKP at discharge
+```
+
+
+
+```{r ANTIBIOTIC USE DURING HOSPITALIZATION}
+# Antibiotic use during hospitalization at patient level
+antibiotic_hospital <- survey[["ANT"]] %>% filter(entry ==2) %>%
+  mutate(antibiotic_hospital = ifelse(ANB_HOS == 3, "yes", "no"))
+
+#antibiotic agents used in hospital, each patient can have more than one antibiotic agents
+antibiotic_hospital_agents <- survey[["ANT_ANB_HOSP_GRID"]] %>% filter(entry ==2) %>%
+
+#ANTIBIOTIC USE DURING CURRENT ADMISSION 
+
+AbCurrent_doubleEntry <- read_excel('AbCurrent.xlsx')
+AbCurrent <- subset(AbCurrent_doubleEntry, AbCurrent_doubleEntry$entry == 2)
+
+#Antibiotic used by CRE patients
+AbCurrent_CRE_admission <- merge(CRE_admission, AbCurrent, by = 'USUBJID', all = T)
+AbCurrent_CRE_admission_patients <- AbCurrent_CRE_admission[, c(1:8, 19:26)]
+AbCurrent_CRE_admission_patients$CRE_admission <- ifelse(is.na(AbCurrent_CRE_admission_patients$SPEC_NUM), 0, 1)
+AbCurrent_CRE_admission_patients <- AbCurrent_CRE_admission_patients[!duplicated(AbCurrent_CRE_admission_patients$USUBJID), ]
+AbCurrent_CRE_admission_patients$CRE_admission <- ifelse(is.na(AbCurrent_CRE_admission_patients$SPEC_NUM), 0, 1)
+AbCurrent_CRE_admission_patients_CREonly<- subset(AbCurrent_CRE_admission_patients, AbCurrent_CRE_admission_patients$CRE_admission==1) 
+
+
+AbCurrent_CRE_discharge <- merge(CRE_discharge, AbCurrent, by = 'USUBJID', all = T)
+AbCurrent_CRE_discharge_patients <- AbCurrent_CRE_discharge[, c(1:8, 19:26)]
+AbCurrent_CRE_discharge_patients$CRE_discharge <- ifelse(is.na(AbCurrent_CRE_discharge_patients$SPEC_NUM), 0, 1)
+AbCurrent_CRE_discharge_patients <- AbCurrent_CRE_discharge_patients[!duplicated(AbCurrent_CRE_discharge_patients$USUBJID), ]
+AbCurrent_CRE_discharge_patients$CRE_discharge <- ifelse(is.na(AbCurrent_CRE_discharge_patients$SPEC_NUM), 0, 1)
+AbCurrent_CRE_discharge_patients_CREonly<- subset(AbCurrent_CRE_discharge_patients, AbCurrent_CRE_discharge_patients$CRE_discharge==1) 
+
+AbCurrent_CREC_admission <- AbCurrent_CRE_admission %>%
+  filter (Identification_MALDITOF == 'Escherichia coli')
+AbCurrent_CREC_discharge <- AbCurrent_CRE_discharge %>%
+  filter (Identification_MALDITOF == 'Escherichia coli')
+
+AbCurrent_CRKP_admission <- AbCurrent_CRE_admission %>%
+  filter (Identification_MALDITOF == 'Klebsiella pneumoniae')
+AbCurrent_CRKP_discharge <- AbCurrent_CRE_discharge %>%
+  filter (Identification_MALDITOF == 'Klebsiella pneumoniae')
+
+##Antbiotic use details
+
+AbCurrent_Detail_doubleEntry <- read_excel('AbCurrent_Detail.xlsx')
+AbCurrent_Detail <- subset(AbCurrent_Detail_doubleEntry, AbCurrent_Detail_doubleEntry$entry == 2)
+AbCurrent_Detail <- AbCurrent_Detail %>%
+
+  mutate(agent = ifelse(ANB_OTHER_SPEC %in% c('Cefoperazol','Cefoperazole', 'Cefoperazon', 'Cefoperazone'), 'Cefoperazone',
+                        ifelse(ANB_OTHER_SPEC %in% c('Senitram'), 'Ampicillin_sulbactam',
+                               ifelse(ANB_OTHER_SPEC %in% c('Cefamandol','Cefemandol'), 'Cefamandol',
+                                      ifelse(ANB_OTHER_SPEC %in% c('Vitabactam'), 'Cefoperazone_sulbactam',
+                                             ifelse(ANB_OTHER_SPEC %in% c('Cefazolin'), 'Cefazolin',
+                                             ifelse(ANB_OTHER_SPEC %in% c('Cefprozil'), 'Cefprozil',
+                                                    ifelse(ANB_OTHER_SPEC %in% c('Cefradin'), 'Cefradin',
+                                                           ifelse(ANB_OTHER_SPEC %in% c('Ceftizoxim', 'Ceftizoxime', 'Ceftizoxom', 'Ceftrizoxim'), 'Ceftizoxime',
+                                                                  ifelse(ANB_OTHER_SPEC %in% c('Cefprozil'), 'Cefprozil',
+                                                                  ifelse(ANB_OTHER_SPEC %in% c('Cefmetazol'), 'Cefmetazol', 
+                                                                         ifelse(ANB_OTHER_SPEC %in% c('Ticarcillin + Acid clavulanic', 'Ticarcillin + Clavulanic', 'Ticarcillin/acid clavulanic'), 'Ticarcillin/acid clavulanic',
+<<<<<<< HEAD
+                                 ANB_HOSP_NAME))))))))))),
+         number = 1,
+         DOT = as.numeric((ANB_HOSP_END_DATE-ANB_HOSP_START_DATE)/86400 +1))
+
+
+
+# calculate DOT of antibiotics used in hospital for each patient, at patient level
+antibiotic_hospital_DOT <- antibiotic_hospital_agents %>%
+  group_by(USUBJID) %>%
+  summarise(number = sum(number), DOT=sum(DOT))
+
+```
+
+``` {r merge datasets}
+
+#MERGE DATA to admission at patient level
+all_data <- merge(admission, survey[["DEMO_HIS"]][,c("USUBJID","smoking","children","married","ambulatory","job","alcohol","drug")], by = "USUBJID", all=T )
+all_data<- merge(all_data, InvasiveHistory[,c("USUBJID","InvasiveHistory")], by = "USUBJID", all=T )
+all_data<- merge(all_data, MedicationHistory[,c("USUBJID","MedicationHistory")], by = "USUBJID", all=T )
+all_data<- merge(all_data, TravelHistory[,c("USUBJID","TravelHistory")], by = "USUBJID", all=T )
+all_data<- merge(all_data, HealthcareHistory[,c("USUBJID","HealthcareHistory")], by = "USUBJID", all=T )
+all_data<- merge(all_data, discharge[,c("USUBJID","ICDGroup","ICUduration","CVCduration","PVCduration","UCduration", "IIDduration",
+                                        "DISCHARGE","ICU","CVC","PVC","UC","IID")], by = "USUBJID", all=T )
+all_data<- merge(all_data, antibiotic_hospital[, c("USUBJID","antibiotic_hospital")], by = "USUBJID", all=T )
+all_data<- merge(all_data, antibiotic_hospital_DOT, by = "USUBJID", all=T )
+
+write.csv(all_data, file = "all_data.csv")
+saveRDS(all_data, file = "all_data.rds")
+
+# to add CRE data depending on type of carriage examined for further analysis
+```
+
+
+                                 ANB_HOSP_NAME))))))))))))
+
+
+
+## Antibiotic use detail in CRE
+
+AbCurrentDOT <- AbCurrent_Detail %>%
+  mutate(number = 1,
+         DOT = as.numeric((ANB_HOSP_END_DATE-ANB_HOSP_START_DATE)/86400 +1)) %>%
+  group_by(USUBJID) %>%
+  summarise(number = sum(number), DOT=sum(DOT))
+summary(AbCurrentDOT$number); sd(AbCurrentDOT$number);
+summary(AbCurrentDOT$DOT); sd(AbCurrentDOT$DOT, na.rm=T);
+
+AbCurrentDOT_CRE_admission <- merge(CRE_admission, AbCurrentDOT,by = 'USUBJID', all = T)
+AbCurrentDOT_CRE_admission_patients <- AbCurrentDOT_CRE_admission[, c(1:8, 19)]
+AbCurrentDOT_CRE_admission_patients$CRE_admission <- ifelse(is.na(AbCurrentDOT_CRE_admission_patients$SPEC_NUM), 0, 1)
+AbCurrentDOT_CRE_admission_patients <- AbCurrentDOT_CRE_admission_patients[!duplicated(AbCurrentDOT_CRE_admission_patients$USUBJID), ]
+AbCurrentDOT_CRE_admission_patients$CRE_admission <- ifelse(is.na(AbCurrentDOT_CRE_admission_patients$SPEC_NUM), 0, 1)
+AbCurrentDOT_CRE_admission_patients_CREonly<- subset(AbCurrentDOT_CRE_admission_patients, AbCurrentDOT_CRE_admission_patients$CRE_admission==1)
+summary(AbCurrentDOT_CRE_admission_patients_CREonly$DOT); sd(AbCurrentDOT_CRE_admission_patients_CREonly$DOT, na.rm=T)
+
+
+AbCurrentDOT_CRE_discharge <- merge(CRE_discharge, AbCurrentDOT,by = 'USUBJID', all = T)
+AbCurrentDOT_CRE_discharge_patients <- AbCurrentDOT_CRE_discharge[, c(1:8, 19)]
+AbCurrentDOT_CRE_discharge_patients$CRE_discharge <- ifelse(is.na(AbCurrentDOT_CRE_discharge_patients$SPEC_NUM), 0, 1)
+AbCurrentDOT_CRE_discharge_patients <- AbCurrentDOT_CRE_discharge_patients[!duplicated(AbCurrentDOT_CRE_discharge_patients$USUBJID), ]
+AbCurrentDOT_CRE_discharge_patients$CRE_discharge <- ifelse(is.na(AbCurrentDOT_CRE_discharge_patients$SPEC_NUM), 0, 1)
+AbCurrentDOT_CRE_discharge_patients_CREonly<- subset(AbCurrentDOT_CRE_discharge_patients, AbCurrentDOT_CRE_discharge_patients$CRE_discharge==1)
+summary(AbCurrentDOT_CRE_discharge_patients_CREonly$DOT); sd(AbCurrentDOT_CRE_discharge_patients_CREonly$DOT, na.rm=T)
+
+# in CREC and CRKP
+AbCurrentDOT_CREC_admission <- merge(CREC_admission, AbCurrentDOT,by = 'USUBJID', all = T)
+AbCurrentDOT_CREC_admission$CRE_admission <- ifelse(is.na(AbCurrentDOT_CREC_admission$SPEC_NUM), 0, 1)
+AbCurrentDOT_CREC_admission_CREConly<- subset(AbCurrentDOT_CREC_admission, AbCurrentDOT_CREC_admission$CRE_admission==1)
+summary(AbCurrentDOT_CREC_admission_CREConly$DOT); sd(AbCurrentDOT_CREC_admission_CREConly$DOT, na.rm=T)
+
+AbCurrentDOT_CREC_discharge <- merge(CREC_discharge, AbCurrentDOT,by = 'USUBJID', all = T)
+AbCurrentDOT_CREC_discharge$CRE_discharge <- ifelse(is.na(AbCurrentDOT_CREC_discharge$SPEC_NUM), 0, 1)
+AbCurrentDOT_CREC_discharge_CREConly<- subset(AbCurrentDOT_CREC_discharge, AbCurrentDOT_CREC_discharge$CRE_discharge==1)
+summary(AbCurrentDOT_CREC_discharge_CREConly$DOT); sd(AbCurrentDOT_CREC_discharge_CREConly$DOT, na.rm=T)
+
+AbCurrentDOT_CRKP_admission <- merge(CRKP_admission, AbCurrentDOT,by = 'USUBJID', all = T)
+AbCurrentDOT_CRKP_admission$CRE_admission <- ifelse(is.na(AbCurrentDOT_CRKP_admission$SPEC_NUM), 0, 1)
+AbCurrentDOT_CRKP_admission_CRKPonly<- subset(AbCurrentDOT_CRKP_admission, AbCurrentDOT_CRKP_admission$CRE_admission==1)
+summary(AbCurrentDOT_CRKP_admission_CRKPonly$DOT); sd(AbCurrentDOT_CRKP_admission_CRKPonly$DOT, na.rm=T)
+
+AbCurrentDOT_CRKP_discharge <- merge(CRKP_discharge, AbCurrentDOT,by = 'USUBJID', all = T)
+AbCurrentDOT_CRKP_discharge$CRE_discharge <- ifelse(is.na(AbCurrentDOT_CRKP_discharge$SPEC_NUM), 0, 1)
+AbCurrentDOT_CRKP_discharge_CRKPonly<- subset(AbCurrentDOT_CRKP_discharge, AbCurrentDOT_CRKP_discharge$CRE_discharge==1)
+summary(AbCurrentDOT_CRKP_discharge_CRKPonly$DOT); sd(AbCurrentDOT_CRKP_discharge_CRKPonly$DOT, na.rm=T)
+
+
+##Antibiotic agents used in hospital
+
+#Ab details in CRE
+
+
+AB_agent_pathogen_function1(CRE_admission, AbCurrent_Detail)
+AB_agent_pathogen_function2(CRE_admission, AbCurrent_Detail)
+
+AB_agent_pathogen_function1(CRE_discharge, AbCurrent_Detail)
+AB_agent_pathogen_function2(CRE_discharge, AbCurrent_Detail)
+
+AB_agent_pathogen_function1(CREC_admission, AbCurrent_Detail)
+AB_agent_pathogen_function2(CREC_admission, AbCurrent_Detail)
+
+AB_agent_pathogen_function1(CREC_discharge, AbCurrent_Detail)
+AB_agent_pathogen_function2(CREC_discharge, AbCurrent_Detail)
+
+AB_agent_pathogen_function1(CRKP_admission, AbCurrent_Detail)
+AB_agent_pathogen_function2(CRKP_admission, AbCurrent_Detail)
+
+AB_agent_pathogen_function1(CRKP_discharge, AbCurrent_Detail)
+AB_agent_pathogen_function2(CRKP_discharge, AbCurrent_Detail)
+
+
+### Combinations
+
+Ciprofloxacin <- AbCurrent_Detail %>%
+  filter(agent == 'Ciprofloxacin')
+
+AB_agent_CIP<- merge(AbCurrent_Detail, Ciprofloxacin,by = 'USUBJID', all = T )
+AB_agent_CIP <- subset(AB_agent_CIP, AB_agent_CIP$agent.y == 'Ciprofloxacin')
+AB_agent_CIP$CIP_before_agent <- ifelse(AB_agent_CIP$ANB_HOSP_END_DATE.y <= AB_agent_CIP$ANB_HOSP_START_DATE.x, 1, 2)
+AB_agent_CIP$CIP_before_agent <- ifelse(AB_agent_CIP$ANB_HOSP_START_DATE.y >= AB_agent_CIP$ANB_HOSP_END_DATE.x, 3, AB_agent_CIP$CIP_before_agent)
+
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
