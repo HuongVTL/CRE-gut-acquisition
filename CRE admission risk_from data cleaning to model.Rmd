@@ -15,15 +15,27 @@ editor_options:
   chunk_output_type: console
 ---
 
-# Constants
 
-```{r constants}
-onedrive <- "OneDrive - Oxford University Clinical Research Unit"
-path2data <- str_replace(getwd(), "GitHub",
-                         ifelse(grepl("apple", Sys.getenv("R_PLATFORM")),
-                                paste0("Library/CloudStorage/", onedrive, "/GitHub"),
-                                paste0(onedrive, "\\GitHub")))
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
 ```
+
+
+# Packages
+
+```{r packages}
+library(dplyr)
+library(stringr)
+library(readxl)
+library(gmodels)
+library(lsmeans)
+library(dplyr)
+library(lme4)
+library(glmmLasso)
+```
+
+
+# Constants
 
 ```{r constants}
 path2data <- str_replace(getwd(), "GitHub",
@@ -33,19 +45,6 @@ path2data <- str_replace(getwd(), "GitHub",
                                 "/GitHub"))
 ```
 
-# Packages
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-require(dplyr)
-require(readxl)
-require(gmodels)
-require(lsmeans)
-require(dplyr)
-require(lme4)
-require(glmmLasso)
-
-```
 
 # Functions
 
@@ -65,7 +64,9 @@ readxl_allsheet <- function(filename, tibble = FALSE) {
 }
 ```
 
+
 # Datasets and variables
+
 ## Source data
 
 ```{r load data}
