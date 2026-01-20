@@ -11,29 +11,40 @@ output:
       collapsed: no
       smooth_scroll: yes
   pdf_document: default
+editor_options: 
+  chunk_output_type: console
 ---
-# Constants
-```{r constants}
-##still do not know how to do this effectively.
-path2data <- "C:/Users/huongvtl/OneDrive - Oxford University Clinical Research Unit/60HN CRE transmission manuscript/"
 
 
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
 ```
+
 
 # Packages
 
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-require(dplyr)
-require(readxl)
-require(gmodels)
-require(lsmeans)
-require(dplyr)
-require(lme4)
-require(glmmLasso)
-
+```{r packages}
+library(dplyr)
+library(stringr)
+library(readxl)
+library(gmodels)
+library(lsmeans)
+library(dplyr)
+library(lme4)
+library(glmmLasso)
 ```
+
+
+# Constants
+
+```{r constants}
+path2data <- str_replace(getwd(), "GitHub",
+                         paste0(ifelse(grepl("apple", Sys.getenv("R_PLATFORM")),
+                                       "Library/CloudStorage", ""),
+                                "/OneDrive - Oxford University Clinical Research Unit",
+                                "/GitHub"))
+```
+
 
 # Functions
 
@@ -53,7 +64,9 @@ readxl_allsheet <- function(filename, tibble = FALSE) {
 }
 ```
 
+
 # Datasets and variables
+
 ## Source data
 
 ```{r load data}
