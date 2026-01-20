@@ -11,17 +11,29 @@ output:
       collapsed: no
       smooth_scroll: yes
   pdf_document: default
+editor_options: 
+  chunk_output_type: console
 ---
+
 # Constants
+
 ```{r constants}
-##still do not know how to do this effectively.
-path2data <- "C:/Users/huongvtl/OneDrive - Oxford University Clinical Research Unit/60HN CRE transmission manuscript/"
+onedrive <- "OneDrive - Oxford University Clinical Research Unit"
+path2data <- str_replace(getwd(), "GitHub",
+                         ifelse(grepl("apple", Sys.getenv("R_PLATFORM")),
+                                paste0("Library/CloudStorage/", onedrive, "/GitHub"),
+                                paste0(onedrive, "\\GitHub")))
+```
 
-
+```{r constants}
+path2data <- str_replace(getwd(), "GitHub",
+                         paste0(ifelse(grepl("apple", Sys.getenv("R_PLATFORM")),
+                                       "Library/CloudStorage", ""),
+                                "/OneDrive - Oxford University Clinical Research Unit",
+                                "/GitHub"))
 ```
 
 # Packages
-
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
