@@ -38,11 +38,13 @@ library(glmmLasso)
 # Constants
 
 ```{r constants}
-path2data <- str_replace(getwd(), "GitHub",
-                         paste0(ifelse(grepl("apple", Sys.getenv("R_PLATFORM")),
-                                       "Library/CloudStorage", ""),
-                                "/OneDrive - Oxford University Clinical Research Unit",
-                                "/GitHub"))
+path2data <- getwd() |>
+  str_replace("GitHub",
+              paste0(ifelse(grepl("apple", Sys.getenv("R_PLATFORM")),
+                            "Library/CloudStorage", ""),
+                     "/OneDrive - Oxford University Clinical Research Unit",
+                     "/GitHub")) |> 
+  paste0("/")
 ```
 
 
@@ -70,6 +72,7 @@ readxl_allsheet <- function(filename, tibble = FALSE) {
 
 ```{r load data}
 survey <- readxl_allsheet("C:/Users/huongvtl/Dropbox/Manuscript_MicroBaseline_15DEC2025/Data Export - 60HN_PATIENT - 16Dec2025/16-12-2025-_60HN_PATIENT_P1_Data.xls")
+survey <- readxl_allsheet(paste0(path2data, "16-12-2025-_60HN_PATIENT_P1_Data.xls"))
 
 cre <- read_excel("C:/Users/huongvtl/Dropbox/Manuscript_MicroBaseline_15DEC2025/60HN_ID_MALDITOF_confirmation_20251128.xlsx")
 
