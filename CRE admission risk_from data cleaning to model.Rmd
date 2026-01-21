@@ -50,16 +50,29 @@ if (grepl("hoisy", Sys.getenv("USER"))) {
 
 # Functions
 
-``` {r functions}
+```{r}
 '%ni%' <- Negate('%in%')
+```
 
+```{r}
+make_path <- function(file) paste0(path2data, file)
+```
+
+```{r}
+read_excel2 <- function(file, ...) read_excel(make_path(file))
+```
+
+```{r}
+excel_sheets2 <- function(file) excel_sheets(make_path(file))
+```
+
+``` {r}
 readxl_allsheet <- function(filename, tibble = FALSE) {
   # I prefer straight data.frames
   # but if you like tidyverse tibbles (the default with read_excel)
   # then just pass tibble = TRUE
-  file_name <- paste0(path2data, filename)
-  sheets <- excel_sheets(filename)
-  x <- lapply(sheets, function(X) read_excel(filename, sheet = X))
+  sheets <- excel_sheets2(filename)
+  x <- lapply(sheets, function(X) read_excel2(filename, sheet = X))
   if(!tibble) x <- lapply(x, as.data.frame)
   names(x) <- sheets
   x
@@ -72,9 +85,9 @@ readxl_allsheet <- function(filename, tibble = FALSE) {
 ## Source data
 
 ```{r load data}
-survey <- readxl_allsheet("C:/Users/huongvtl/Dropbox/Manuscript_MicroBaseline_15DEC2025/Data Export - 60HN_PATIENT - 16Dec2025/16-12-2025-_60HN_PATIENT_P1_Data.xls")
-cre <- read_excel("C:/Users/huongvtl/Dropbox/Manuscript_MicroBaseline_15DEC2025/60HN_ID_MALDITOF_confirmation_20251128.xlsx")
-discharge_date <- read_excel("C:/Users/huongvtl/Dropbox/Manuscript_MicroBaseline_15DEC2025/60HN - DischargeDate_no_discharge_sample_27Nov25.xlsx")
+survey <- readxl_allsheet("16-12-2025-_60HN_PATIENT_P1_Data.xls")
+cre <- read_excel2("60HN_ID_MALDITOF_confirmation_20251128.xlsx")
+discharge_date <- read_excel2("60HN - DischargeDate_no_discharge_sample_27Nov25.xlsx")
 ```
 
 
