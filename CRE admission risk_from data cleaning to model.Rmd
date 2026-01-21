@@ -38,13 +38,13 @@ library(glmmLasso)
 # Constants
 
 ```{r constants}
-path2data <- getwd() |>
-  str_replace("GitHub",
-              paste0(ifelse(grepl("apple", Sys.getenv("R_PLATFORM")),
-                            "Library/CloudStorage", ""),
-                     "/OneDrive - Oxford University Clinical Research Unit",
-                     "/GitHub")) |> 
-  paste0("/")
+if (grepl("hoisy", Sys.getenv("USER"))) {
+  path2data <- paste0("~/Library/CloudStorage/OneDrive-OxfordUniversityClinical",
+                      "ResearchUnit/GitHub/HuongVTL/CRE-gut-acquisition/")
+} else {
+  path2data <- paste("C:/Users/huongvtl/OneDrive - Oxford University Clinical",
+                     "Research Unit/60HN CRE transmission manuscript/")
+}
 ```
 
 
