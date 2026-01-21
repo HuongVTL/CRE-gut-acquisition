@@ -72,7 +72,11 @@ readxl_allsheet <- function(filename, tibble = FALSE) {
   # but if you like tidyverse tibbles (the default with read_excel)
   # then just pass tibble = TRUE
   sheets <- excel_sheets2(filename)
-  x <- lapply(sheets, function(X) read_excel2(filename, sheet = X))
+  x <- lapply(sheets, function(X) {
+    filename |>
+      read_excel2(sheet = X) |> 
+      filter(entry == 2)
+  })
   if(!tibble) x <- lapply(x, as.data.frame)
   names(x) <- sheets
   x
@@ -84,78 +88,80 @@ readxl_allsheet <- function(filename, tibble = FALSE) {
 
 ## Source data
 
+The list of non-CRE bacteria to exclude from the data:
+
+```{r}
+non_CRE <- c("Acinetobacter baumannii", "Aeromonas caviae", "Aeromonas hydrophila",
+             "Aeromonas veronii", "Enterococcus faecium", "Cupriavidus gilardii",
+             "Pseudomonas putida")
+```
+
+Reading the data sets:
+
 ```{r load data}
 survey <- readxl_allsheet("16-12-2025-_60HN_PATIENT_P1_Data.xls")
-cre <- read_excel2("60HN_ID_MALDITOF_confirmation_20251128.xlsx")
+cre <- read_excel2("60HN_ID_MALDITOF_confirmation_20251128.xlsx") |> 
+  filter(Identification_MALDITOF %ni% non_CRE) |> 
+  mutate(hospitaltype = ifelse(SiteID %in% c("010","159"), 1, 2))
 discharge_date <- read_excel2("60HN - DischargeDate_no_discharge_sample_27Nov25.xlsx")
 ```
 
 
 ## CRE datasets
 
+```{r}
+remove_duplicates <- function(x) {
+  x <- select(x, USUBJID, SPEC_DATE)
+  x <- x[!duplicated(x$USUBJID), ]
+  x
+}
+```
+
 ```{r cre carriage and species}
 CRE_admission <- subset(cre, cre$SampleSchedule == "ADMISSION"); 
-CRE_admission <- CRE_admission %>%
-  filter(Identification_MALDITOF %ni% c("Aeromonas caviae", "Aeromonas hydrophila", "Aeromonas veronii", "Enterococcus faecium"))
+CRE_discharge <- subset(cre, cre$SampleSchedule == "DISCHARGE")
 
-CRE_discharge <- subset(cre, cre$SampleSchedule =="DISCHARGE")
-CRE_discharge <- CRE_discharge %>%
-  filter(Identification_MALDITOF %ni% c("Acinetobacter baumannii", "Aeromonas caviae",
-                                        "Aeromonas hydrophila", "Aeromonas veronii",
-                                        "Cupriavidus gilardii", "Enterococcus faecium",
-                                        "Pseudomonas putida"))
-
-
-length(unique(CRE_admission$USUBJID)); length(unique(CRE_discharge$USUBJID))
-
-CRE_admission$hospitaltype<- ifelse(CRE_admission$SiteID %in% c("010","159"), 1, 2)
-CRE_discharge$hospitaltype<- ifelse(CRE_discharge$SiteID %in% c("010","159"), 1, 2)
+length(unique(CRE_admission$USUBJID))
+length(unique(CRE_discharge$USUBJID))
 
 ## subset to specific CREC or CRKP
 CREC_admission <- CRE_admission %>%
   filter(Identification_MALDITOF == "Escherichia coli") %>%
-  select(USUBJID, SPEC_DATE)
-CREC_admission <- CREC_admission[!duplicated(CREC_admission$USUBJID),]
+  remove_duplicates()
 
 CREC_discharge <- CRE_discharge %>%
   filter(Identification_MALDITOF == "Escherichia coli") %>%
-  select(USUBJID, SPEC_DATE)
-CREC_discharge <- CREC_discharge[!duplicated(CREC_discharge$USUBJID),]
-
+  remove_duplicates()
 
 CRKP_admission <- CRE_admission %>%
   filter(Identification_MALDITOF == "Klebsiella pneumoniae") %>%
-  select(USUBJID, SPEC_DATE)
-CRKP_admission <- CRKP_admission[!duplicated(CRKP_admission$USUBJID),]
+  remove_duplicates()
 
 CRKP_discharge <- CRE_discharge %>%
   filter(Identification_MALDITOF == "Klebsiella pneumoniae") %>%
-  select(USUBJID, SPEC_DATE)
-CRKP_discharge <- CRKP_discharge[!duplicated(CRKP_discharge$USUBJID),]
+  remove_duplicates()
 ```
+
+
 ## Admission dataset
 
 ```{r Admission variables}
-survey[["ADM"]] <- survey[["ADM"]] %>% filter(entry ==2) %>%
+survey[["ADM"]] <- survey[["ADM"]] %>%
   mutate(hospitaltype = ifelse(SITEID %in% c("010","159"), 1, 2),
-         age = 2025-YEAR_BIRTH +1,
-         Ab_history = ifelse(ANB_ADMISSION %in% c(1,4),0,1),
-         wardtype = as.factor(ifelse(WARD_3==1, "surgical", "medical/ID")))
+         age = 2025 - YEAR_BIRTH + 1,
+         Ab_history = ifelse(ANB_ADMISSION %in% c(1, 4), 0, 1),
+         wardtype = as.factor(ifelse(WARD_3 == 1, "surgical", "medical/ID")))
 
-survey[["SCR"]] <- survey[["SCR"]]%>% filter(entry==2) %>%
-  mutate(discharge_date = SPEC_DATE_DISCHARGE) 
-
-discharge_date <-merge(discharge_date,survey[["SCR"]], by = "USUBJID", all = T )
-
-discharge_date <- discharge_date %>%
-  mutate(DISCHARGE_DATE = ifelse(is.na(discharge_date), `Discharge date`,discharge_date)) %>%
-  select(USUBJID, DISCHARGE_DATE)
-
-admission <- merge(survey[["ADM"]],discharge_date, by = "USUBJID", all = T )
-admission <- admission %>%
-  mutate(los = as.numeric((as.POSIXct(DISCHARGE_DATE) - as.POSIXct(ADMISSION_DATE))/86400+1))
-
+admission <- discharge_date |>
+  merge(survey[["SCR"]], by = "USUBJID", all = TRUE) |>
+  mutate(DISCHARGE_DATE = ifelse(is.na(SPEC_DATE_DISCHARGE),
+                                 `Discharge date`, SPEC_DATE_DISCHARGE)) %>%
+  select(USUBJID, DISCHARGE_DATE) |> 
+  merge(survey[["ADM"]], by = "USUBJID", all = TRUE) %>%
+  mutate(los = as.numeric((as.POSIXct(DISCHARGE_DATE) -
+                             as.POSIXct(ADMISSION_DATE)) / 86400 + 1))
 ```
+
 
 ## General info dataset
 
