@@ -411,29 +411,23 @@ all_data <- list(
 # Prepare risk datasets for Lasso modeling
 
 ```{r risk datasets}
-
-riskdata <- merge2(all_data, CREC_admission)
-riskdata <- riskdata %>%
-  mutate(CRE_carriage = ifelse(is.na(SPEC_DATE), 0, 1),
-         smoking2 = as.factor(ifelse(smoking == "all non-smokers", "all non-smokers", "smokers")),
+riskdata <- merge2(all_data, CREC_admission) %>%
+  mutate(CRE_carriage = ! is.na(SPEC_DATE),
+         smoking2 = as.factor(ifelse(smoking == "all non-smokers",
+                                     "all non-smokers", "smokers")),
          children2 = as.factor(ifelse(is.na(children), 1, children)), 
-         # NA to be classified as 1= having no children living in the house; 2 = having children living in the house
-         job_farmer = as.factor(ifelse(job == "farmer", "farmers", "allothers")), #1=others, 3=housewife 4= retired 2 = farmers
-         job_housewife = as.factor(ifelse(job == "housewife", "housewives", "allothers")), #1=others, 3=housewife 4= retired 2 = farmers
-         job_retired = as.factor(ifelse(job == "retired", "retired", "allothers")), #1=others, 3=housewife 4= retired 2 = farmers
-         heart_diseases = as.factor(ifelse(as.factor(MI_HIS+CHF)==0, 0, 1)),
-         vascular_diseases = as.factor(ifelse(as.factor(CVD+PVD)==0, 0,1)),
+# NA to be classified as 1 = having no children living in the house; 2 = having children living in the house
+         job_farmer = as.factor(ifelse(job == "farmer", "farmers", "allothers")),# 1 = others, 3 = housewife, 4 = retired, 2 = farmers
+         job_housewife = as.factor(ifelse(job == "housewife", "housewives", "allothers")), # 1 = others, 3 = housewife, 4 = retired, 2 = farmers
+         job_retired = as.factor(ifelse(job == "retired", "retired", "allothers")), # 1 = others, 3 = housewife, 4 = retired, 2 = farmers
+         heart_diseases = as.factor(ifelse(as.factor(MI_HIS + CHF) == 0, 0, 1)),
+         vascular_diseases = as.factor(ifelse(as.factor(CVD + PVD) == 0, 0, 1)),
          cancer = as.factor(TUMOR_NOMETA + LEUKEMIA + LYMPHOMA + META_TUMOR),
-         ICD_Circulatory = as.factor(ifelse(ICDGroup == "Circulatory diseases", "Circulatory diseases", "allothers")), 
-         ICD_Genitourinary = as.factor(ifelse(ICDGroup == "Genitourinary diseases", "Genitourinary diseases", "allothers")),
-         ICD_IDIntestinal = as.factor(ifelse(ICDGroup == "ID (Intestinal)", "ID (Intestinal)", "allothers")),
-         ICD_IDOther = as.factor(ifelse(ICDGroup == "ID (Other)", "ID (Other)", "allothers")),
-         ICD_Neoplasms = as.factor(ifelse(ICDGroup == "Neoplasms", "Neoplasms", "allothers")),
-         ICD_Digestive = as.factor(ifelse(ICDGroup == "Digestive diseases", "Digestive diseases", "allothers")),
-         ICD_Respiratory = as.factor(ifelse(ICDGroup == "Respiratory diseases", "Respiratory diseases", "allothers")),
-         )
-
+         values = TRUE) |> 
+  pivot_wider(names_from = ICDGroup, values_from = values, values_fill = FALSE)
 ```
+
+
 
 # Prepare variables for Lasso modeling
 
