@@ -91,6 +91,10 @@ readxl_allsheet <- function(filename, tibble = FALSE) {
 }
 ```
 
+```{r}
+merge2 <- function(...) merge(..., by = "USUBJID", all = TRUE)
+```
+
 
 # Datasets and variables
 
@@ -161,11 +165,11 @@ survey[["ADM"]] <- survey[["ADM"]] %>%
          wardtype = as.factor(ifelse(WARD_3 == 1, "surgical", "medical/ID")))
 
 admission <- discharge_date |>
-  merge(survey[["SCR"]], by = "USUBJID", all = TRUE) |>
+  merge2(survey[["SCR"]]) |>
   mutate(DISCHARGE_DATE = ifelse(is.na(SPEC_DATE_DISCHARGE),
                                  `Discharge date`, SPEC_DATE_DISCHARGE)) %>%
   select(USUBJID, DISCHARGE_DATE) |> 
-  merge(survey[["ADM"]], by = "USUBJID", all = TRUE) %>%
+  merge2(survey[["ADM"]]) %>%
   mutate(los = as.numeric((as.POSIXct(DISCHARGE_DATE) -
                              as.POSIXct(ADMISSION_DATE)) / 86400 + 1))
 ```
@@ -398,7 +402,7 @@ all_data <- list(
            UCduration, IIDduration, DISCHARGE, ICU, CVC, PVC, UC, IID),
     select(antibiotic_hospital, USUBJID, antibiotic_hospital),
     antibiotic_hospital_DOT) |> 
-  reduce(merge, by = "USUBJID", all = TRUE)
+  reduce(merge2)
 
 # to add CRE data depending on type of carriage examined for further analysis
 ```
@@ -408,7 +412,7 @@ all_data <- list(
 
 ```{r risk datasets}
 
-riskdata <- merge(all_data, CREC_admission, by ="USUBJID", all=T )
+riskdata <- merge2(all_data, CREC_admission)
 riskdata <- riskdata %>%
   mutate(CRE_carriage = ifelse(is.na(SPEC_DATE), 0, 1),
          smoking2 = as.factor(ifelse(smoking == "all non-smokers", "all non-smokers", "smokers")),
