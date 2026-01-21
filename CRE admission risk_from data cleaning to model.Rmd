@@ -289,6 +289,7 @@ genitourinary_diseases <- c("N00", "N13.2", "N13.3", "N13.6", "N17", "N17.9", "N
 Tests:
 
 ```{r}
+unique_codes <- unique(survey[["DIS"]]$FINAL_DIAG_ICD10)
 all_codes <- c(id_intestinal, id_other, neoplasms, circulatory_diseases,
                respiratory_diseases, digestive_diseases, genitourinary_diseases)
 
@@ -296,7 +297,8 @@ all_codes |>
   table() |> 
   unique()
 
-all(all_codes %in% unique(survey[["DIS"]]$FINAL_DIAG_ICD10))
+all(all_codes %in% unique_codes)
+setdiff(all_codes, unique_codes)
 ```
 
 
@@ -310,7 +312,7 @@ discharge <- survey[["DIS"]] %>%
            FINAL_DIAG_ICD10 %in% respiratory_diseases ~ "Respiratory diseases",
            FINAL_DIAG_ICD10 %in% digestive_diseases ~ "Digestive diseases",
            FINAL_DIAG_ICD10 %in% genitourinary_diseases ~ "Genitourinary diseases",
-           TRUE ~ "Other")),
+           .default = "Other")),
          ICUduration = difftime(ICU_TO, ICU_FROM, units = "days") + 1,
          CVCduration = difftime(CVC_TO, CVC_FROM, units = "days") + 1,
          PVCduration = difftime(PVC_TO, PVC_FROM, units = "days") + 1,
@@ -320,36 +322,65 @@ discharge <- survey[["DIS"]] %>%
 
 ## Antibiotic use during hospitalization
 
+```{r}
+cefoperazone <- c("Cefoperazol","Cefoperazole", "Cefoperazon", "Cefoperazone")
+ampicill_sulb <- "Senitram"
+cefamandol <- c("Cefamandol", "Cefemandol")
+cefo_sulb <- "Vitabactam"
+cefazolin <- "Cefazolin"
+cefprozil <- "Cefprozil"
+cefradin <- "Cefradin"
+ceftizoxime <- c("Ceftizoxim", "Ceftizoxime", "Ceftizoxom", "Ceftrizoxim")
+cefmetazol <- "Cefmetazol"
+ticarcillin_acid_clavulanic <- c("Ticarcillin + Acid clavulanic",
+                                 "Ticarcillin + Clavulanic",
+                                 "Ticarcillin/acid clavulanic")
+```
+
+Tests:
+
+```{r}
+unique_ab <- unique(survey[["ANT_ANB_HOSP_GRID"]]$ANB_OTHER_SPEC)
+all_ab <- c(cefoperazone, ampicill_sulb, cefamandol, cefo_sulb,
+            cefazolin, cefprozil, cefradin, ceftizoxime, cefmetazol,
+            ticarcillin_acid_clavulanic)
+
+all_ab |> 
+  table() |> 
+  unique()
+
+all(all_ab %in% unique_ab)
+setdiff(all_ab, unique_ab)
+```
+
 ```{r ANTIBIOTIC USE DURING HOSPITALIZATION}
 # Antibiotic use during hospitalization at patient level
 antibiotic_hospital <- survey[["ANT"]] %>%
   mutate(antibiotic_hospital = ifelse(ANB_HOS == 3, "yes", "no"))
 
-#antibiotic agents used in hospital, each patient can have more than one antibiotic agents
+#antibiotic agents used in hospital, each patient can have more than 1 antibiotic agent
 antibiotic_hospital_agents <- survey[["ANT_ANB_HOSP_GRID"]] %>%
-  mutate(agent = ifelse(ANB_OTHER_SPEC %in% c("Cefoperazol","Cefoperazole", "Cefoperazon", "Cefoperazone"), "Cefoperazone",
-                        ifelse(ANB_OTHER_SPEC %in% c("Senitram"), "Ampicillin_sulbactam",
-                               ifelse(ANB_OTHER_SPEC %in% c("Cefamandol","Cefemandol"), "Cefamandol",
-                                      ifelse(ANB_OTHER_SPEC %in% c("Vitabactam"), "Cefoperazone_sulbactam",
-                                             ifelse(ANB_OTHER_SPEC %in% c("Cefazolin"), "Cefazolin",
-                                             ifelse(ANB_OTHER_SPEC %in% c("Cefprozil"), "Cefprozil",
-                                                    ifelse(ANB_OTHER_SPEC %in% c("Cefradin"), "Cefradin",
-                                                           ifelse(ANB_OTHER_SPEC %in% c("Ceftizoxim", "Ceftizoxime", "Ceftizoxom", "Ceftrizoxim"), "Ceftizoxime",
-                                                                  ifelse(ANB_OTHER_SPEC %in% c("Cefprozil"), "Cefprozil",
-                                                                  ifelse(ANB_OTHER_SPEC %in% c("Cefmetazol"), "Cefmetazol", 
-                                                                         ifelse(ANB_OTHER_SPEC %in% c("Ticarcillin + Acid clavulanic", "Ticarcillin + Clavulanic", "Ticarcillin/acid clavulanic"), "Ticarcillin/acid clavulanic",
-                                 ANB_HOSP_NAME))))))))))),
+  mutate(agent = case_when(ANB_OTHER_SPEC %in% cefoperazone ~ "Cefoperazone",
+                           ANB_OTHER_SPEC %in% ampicill_sulb ~ "Ampicillin_sulbactam",
+                           ANB_OTHER_SPEC %in% cefamandol ~ "Cefamandol",
+                           ANB_OTHER_SPEC %in% cefo_sulb ~ "Cefoperazone_sulbactam",
+                           ANB_OTHER_SPEC %in% cefazolin ~ "Cefazolin",
+                           ANB_OTHER_SPEC %in% cefprozil ~ "Cefprozil",
+                           ANB_OTHER_SPEC %in% cefradin ~ "Cefradin",
+                           ANB_OTHER_SPEC %in% ceftizoxime ~ "Ceftizoxime",
+                           ANB_OTHER_SPEC %in% cefmetazol ~ "Cefmetazol",
+                           ANB_OTHER_SPEC %in% ticarcillin_acid_clavulanic ~
+                             "Ticarcillin/acid clavulanic",
+                           .default = ANB_HOSP_NAME),
          number = 1,
-         DOT = as.numeric((ANB_HOSP_END_DATE-ANB_HOSP_START_DATE)/86400 +1))
-
-
+         DOT = as.numeric((ANB_HOSP_END_DATE - ANB_HOSP_START_DATE) / 86400 + 1))
 
 # calculate DOT of antibiotics used in hospital for each patient, at patient level
 antibiotic_hospital_DOT <- antibiotic_hospital_agents %>%
   group_by(USUBJID) %>%
-  summarise(number = sum(number), DOT=sum(DOT))
-
+  summarise(number = sum(number), DOT = sum(DOT))
 ```
+
 
 ## merge all data in the CRF
 
