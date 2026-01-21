@@ -209,24 +209,44 @@ survey[["DEMO_HIS"]] <- survey[["DEMO_HIS"]] %>%
 ## Other history dataset
 
 ```{r other history}
-
-InvasiveHistory <- survey[["DEMO_HIS_HISTORY_GRID"]] %>% filter(entry ==2) %>%
-  filter(HIS_CONDITION ==1) %>%
-  mutate(InvasiveHistory=as.factor(ifelse(HIS_YN == 2, "Yes", "No")))
+InvasiveHistory <- survey[["DEMO_HIS_HISTORY_GRID"]] %>%
+  filter(HIS_CONDITION == 1) %>%
+  mutate(InvasiveHistory = as.factor(ifelse(HIS_YN == 2, "Yes", "No")))
          
-MedicationHistory <- survey[["DEMO_HIS_HISTORY_GRID"]] %>% filter(entry ==2) %>%
-  filter(HIS_CONDITION ==2)%>%
-  mutate(MedicationHistory=as.factor(ifelse(HIS_YN == 2, "Yes", "No")))
+MedicationHistory <- survey[["DEMO_HIS_HISTORY_GRID"]] %>%
+  filter(HIS_CONDITION == 2) %>%
+  mutate(MedicationHistory = as.factor(ifelse(HIS_YN == 2, "Yes", "No")))
 
-TravelHistory <- survey[["DEMO_HIS_HISTORY_GRID"]] %>% filter(entry ==2) %>%
-  filter(HIS_CONDITION ==3)%>%
-  mutate(TravelHistory=as.factor(ifelse(HIS_YN == 2, "Yes", "No")))
+TravelHistory <- survey[["DEMO_HIS_HISTORY_GRID"]] %>%
+  filter(HIS_CONDITION == 3) %>%
+  mutate(TravelHistory = as.factor(ifelse(HIS_YN == 2, "Yes", "No")))
 
-HealthcareHistory <- survey[["DEMO_HIS_HISTORY_GRID"]] %>% filter(entry ==2) %>%
-  filter(HIS_CONDITION ==4)%>%
-  mutate(HealthcareHistory=as.factor(ifelse(HIS_YN == 2, "Yes", "No")))
-
+HealthcareHistory <- survey[["DEMO_HIS_HISTORY_GRID"]] %>%
+  filter(HIS_CONDITION == 4) %>%
+  mutate(HealthcareHistory = as.factor(ifelse(HIS_YN == 2, "Yes", "No")))
 ```
+
+```{r other history}
+InvasiveHistory <- survey[["DEMO_HIS_HISTORY_GRID"]] %>%
+  mutate(InvasiveHistory = as.factor(ifelse(HIS_YN == 2, "Yes", "No"))) |> 
+  group_by(HIS_CONDITION) |> 
+  group_split()
+  
+  
+         
+MedicationHistory <- survey[["DEMO_HIS_HISTORY_GRID"]] %>%
+  filter(HIS_CONDITION == 2) %>%
+  mutate(MedicationHistory = as.factor(ifelse(HIS_YN == 2, "Yes", "No")))
+
+TravelHistory <- survey[["DEMO_HIS_HISTORY_GRID"]] %>%
+  filter(HIS_CONDITION == 3) %>%
+  mutate(TravelHistory = as.factor(ifelse(HIS_YN == 2, "Yes", "No")))
+
+HealthcareHistory <- survey[["DEMO_HIS_HISTORY_GRID"]] %>%
+  filter(HIS_CONDITION == 4) %>%
+  mutate(HealthcareHistory = as.factor(ifelse(HIS_YN == 2, "Yes", "No")))
+```
+
 
 ## Discharge dataset
 
