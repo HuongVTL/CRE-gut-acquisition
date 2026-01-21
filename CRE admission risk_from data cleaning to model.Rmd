@@ -111,9 +111,9 @@ discharge_date <- read_excel2("60HN - DischargeDate_no_discharge_sample_27Nov25.
 
 ```{r}
 remove_duplicates <- function(x) {
-  x <- select(x, USUBJID, SPEC_DATE)
-  x <- x[!duplicated(x$USUBJID), ]
-  x
+  x |>
+    select(USUBJID, SPEC_DATE) |> 
+    unique()
 }
 ```
 
@@ -166,41 +166,43 @@ admission <- discharge_date |>
 ## General info dataset
 
 ```{r General information}
-
-survey[["DEMO_HIS"]] <- survey[["DEMO_HIS"]] %>% filter(entry ==2) %>%
-  mutate(JOB_final= case_when(JOB_SPECIFY %in% c("Cán bộ công chức", "Cán bộ xã") ~ 1,
-            JOB_SPECIFY %in% c("Bảo vệ", "Cơ khí","Hộ lý", "Lái tàu thủy", "Lao động tự do","Vệ sỹ") ~ 4,
-            JOB_SPECIFY %in% c("già", "Già","Hết độ tuổi lao động") ~ 8,
-            JOB_SPECIFY %in% c("Ở nhà", "Tự do") ~ 9,
-            .default = as.numeric(JOB)),
-         householdsize = ADULT+CHILDREN,
-         ALCOHOL_CUTDOWN_score = ifelse(ALCOHOL_CUTDOWN == 1, 0, 1),
-         ALCOHOL_ANNOYED_score = ifelse(ALCOHOL_ANNOYED == 1, 0, 1),
-         ALCOHOL_GUILTY_score = ifelse(ALCOHOL_GUILTY == 1, 0, 1),
-         ALCOHOL_DRUG_score = ifelse(ALCOHOL_DRUG == 1, 0, 1),
-         DRUG_CUTDOWN_score = ifelse(DRUG_CUTDOWN == 1, 0, 1),
-         DRUG_ANNOYED_score = ifelse(DRUG_ANNOYED == 1, 0, 1),
-         DRUG_GUILTY_score = ifelse(DRUG_GUILTY == 1, 0, 1),
-         DRUG_DRUG_score = ifelse(DRUG_DRUG == 1, 0, 1),
-         smoking = as.factor(ifelse(SMOKING == 1, "current smoker", ifelse(SMOKING == 2, "former smoker", "all non-smokers"))),
-         children = as.factor(ifelse(CHILDREN == 0, "no children in the household", "with children in the household")),
-         married = as.factor(ifelse(MARITAL ==1, "married", "other")),
-         ambulatory = as.factor(ifelse(AMBULATORY == 1, "independent", "not independent"))
-         )
-
-survey[["DEMO_HIS"]] <- survey[["DEMO_HIS"]] %>% filter(entry ==2) %>%
-  mutate(
-    AlcoholCAGE = ALCOHOL_CUTDOWN_score+ALCOHOL_ANNOYED_score+ALCOHOL_GUILTY_score+ALCOHOL_DRUG_score, 
-    DrugCAGE= DRUG_CUTDOWN_score+DRUG_ANNOYED_score+DRUG_GUILTY_score+DRUG_DRUG_score,
-    job = as.factor(ifelse(JOB_final== 6, "farmer",ifelse(JOB_final== 7,"housewife",ifelse(JOB_final == 8, "retired", "all other jobs")))),
-    )
-
-survey[["DEMO_HIS"]] <- survey[["DEMO_HIS"]] %>% filter(entry ==2) %>%
-  mutate(
-    alcohol = as.factor(ifelse(AlcoholCAGE == 0, "0 problem", "1-4 problem")),
-    drug = as.factor(ifelse(DrugCAGE == 0, "0 problem", "1-4 problem"))
-  )
-
+survey[["DEMO_HIS"]] <- survey[["DEMO_HIS"]] %>%
+  mutate(JOB_final = case_when(JOB_SPECIFY %in% c("Cán bộ công chức", "Cán bộ xã") ~ 1,
+                               JOB_SPECIFY %in% c("Bảo vệ", "Cơ khí","Hộ lý",
+                                                  "Lái tàu thủy", "Lao động tự do",
+                                                  "Vệ sỹ") ~ 4,
+                               JOB_SPECIFY %in% c("già", "Già",
+                                                  "Hết độ tuổi lao động") ~ 8,
+                               JOB_SPECIFY %in% c("Ở nhà", "Tự do") ~ 9,
+                               .default = as.numeric(JOB)),
+         householdsize = ADULT + CHILDREN,
+         ALCOHOL_CUTDOWN_score = ALCOHOL_CUTDOWN != 1,
+         ALCOHOL_ANNOYED_score = ALCOHOL_ANNOYED != 1,
+         ALCOHOL_GUILTY_score = ALCOHOL_GUILTY != 1,
+         ALCOHOL_DRUG_score = ALCOHOL_DRUG != 1,
+         DRUG_CUTDOWN_score = DRUG_CUTDOWN != 1,
+         DRUG_ANNOYED_score = DRUG_ANNOYED != 1,
+         DRUG_GUILTY_score = DRUG_GUILTY != 1,
+         DRUG_DRUG_score = DRUG_DRUG != 1,
+         smoking = as.factor(ifelse(SMOKING == 1, "current smoker",
+                                    ifelse(SMOKING == 2, "former smoker",
+                                           "all non-smokers"))),
+         children = as.factor(ifelse(CHILDREN == 0,
+                                     "no children in the household",
+                                     "with children in the household")),
+         married = as.factor(ifelse(MARITAL == 1, "married", "other")),
+         ambulatory = as.factor(ifelse(AMBULATORY == 1,
+                                       "independent", "not independent")),
+         AlcoholCAGE = ALCOHOL_CUTDOWN_score + ALCOHOL_ANNOYED_score +
+           ALCOHOL_GUILTY_score + ALCOHOL_DRUG_score, 
+         DrugCAGE = DRUG_CUTDOWN_score + DRUG_ANNOYED_score + DRUG_GUILTY_score +
+           DRUG_DRUG_score,
+         job = as.factor(ifelse(JOB_final== 6, "farmer",
+                                ifelse(JOB_final == 7, "housewife",
+                                       ifelse(JOB_final == 8, "retired",
+                                              "all other jobs")))),
+         alcohol = as.factor(ifelse(AlcoholCAGE == 0, "0 problem", "1-4 problem")),
+         drug = as.factor(ifelse(DrugCAGE == 0, "0 problem", "1-4 problem")))
 ```
 
 
