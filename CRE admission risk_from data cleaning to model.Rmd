@@ -25,11 +25,11 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r packages}
 library(dplyr)
+library(purrr)
 library(stringr)
 library(readxl)
 library(gmodels)
 library(lsmeans)
-library(dplyr)
 library(lme4)
 library(glmmLasso)
 ```
@@ -386,20 +386,23 @@ antibiotic_hospital_DOT <- antibiotic_hospital_agents %>%
 
 ``` {r merge CRF datasets}
 #select the variables that are relevant for further modeling
-
-all_data <- merge(admission, survey[["DEMO_HIS"]][,c("USUBJID","smoking","children","married","ambulatory","job","alcohol","drug")], by = "USUBJID", all=T )
-all_data<- merge(all_data, InvasiveHistory[,c("USUBJID","InvasiveHistory")], by = "USUBJID", all=T )
-all_data<- merge(all_data, MedicationHistory[,c("USUBJID","MedicationHistory")], by = "USUBJID", all=T )
-all_data<- merge(all_data, TravelHistory[,c("USUBJID","TravelHistory")], by = "USUBJID", all=T )
-all_data<- merge(all_data, HealthcareHistory[,c("USUBJID","HealthcareHistory")], by = "USUBJID", all=T )
-all_data<- merge(all_data, discharge[,c("USUBJID","ICDGroup","ICUduration","CVCduration","PVCduration","UCduration", "IIDduration",
-                                        "DISCHARGE","ICU","CVC","PVC","UC","IID")], by = "USUBJID", all=T )
-all_data<- merge(all_data, antibiotic_hospital[, c("USUBJID","antibiotic_hospital")], by = "USUBJID", all=T )
-all_data<- merge(all_data, antibiotic_hospital_DOT, by = "USUBJID", all=T )
-
+all_data <- list(
+    admission,
+    select(survey$DEMO_HIS, USUBJID, smoking, children, married, ambulatory, job,
+           alcohol, drug),
+    select(InvasiveHistory, USUBJID, InvasiveHistory),
+    select(MedicationHistory, USUBJID, MedicationHistory),
+    select(TravelHistory, USUBJID, TravelHistory),
+    select(HealthcareHistory, USUBJID, HealthcareHistory),
+    select(discharge, USUBJID, ICDGroup, ICUduration, CVCduration, PVCduration,
+           UCduration, IIDduration, DISCHARGE, ICU, CVC, PVC, UC, IID),
+    select(antibiotic_hospital, USUBJID, antibiotic_hospital),
+    antibiotic_hospital_DOT) |> 
+  reduce(merge, by = "USUBJID", all = TRUE)
 
 # to add CRE data depending on type of carriage examined for further analysis
 ```
+
 
 # Prepare risk datasets for Lasso modeling
 
