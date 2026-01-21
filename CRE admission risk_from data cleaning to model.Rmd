@@ -38,7 +38,7 @@ library(glmmLasso)
 # Constants
 
 ```{r constants}
-if (grepl("hoisy", Sys.getenv("USER"))) {
+if (grepl("arc|hoisy", Sys.getenv("USER"))) {
   path2data <- paste0("~/Library/CloudStorage/OneDrive-OxfordUniversityClinical",
                       "ResearchUnit/GitHub/HuongVTL/CRE-gut-acquisition/")
 } else {
@@ -58,13 +58,19 @@ if (grepl("hoisy", Sys.getenv("USER"))) {
 make_path <- function(file) paste0(path2data, file)
 ```
 
+Tuning `read_excel()`:
+
 ```{r}
 read_excel2 <- function(file, ...) read_excel(make_path(file), ...)
 ```
 
+Tuning `excel_sheets()`:
+
 ```{r}
 excel_sheets2 <- function(file) excel_sheets(make_path(file))
 ```
+
+A function that reads all the sheets of an excel file:
 
 ``` {r}
 readxl_allsheet <- function(filename, tibble = FALSE) {
@@ -233,42 +239,81 @@ HealthcareHistory <- survey[["DEMO_HIS_HISTORY_GRID"]] %>%
 
 ## Discharge dataset
 
+The categories:
+
+```{r}
+id_intestinal <- c("A04", "A04.8", "A04.9", "A05.9", "A06.4", "A08.0", "A08.5", "A09",
+                   "A09.0", "A09.9")
+id_other <- c("A15.0", "A15.3", "A16.2", "A41", "A41.5", "A41.8", "A41.9", "A48",
+              "A49.9", "A79.8", "A79.9", "A93", "A94", "A97", "B00.1", "B01", "B01.2",
+              "B01.8", "B02", "B02.7", "B02.8", "B05", "B05.2", "B05.8", "B05.9",
+              "B17", "B18.1", "B18.2", "B34.9", "B83.8")
+neoplasms <- c("C18", "C18.9; K56.6", "C20", "C22", "C22.9", "C34.9", "C41", "C61",
+               "C67.9", "C70.0", "C91.9", "C92.2", "C95.0", "D12.0", "D17", "D21",
+               "D21.9", "D23", "D23.9", "D27", "D37.4", "D38.1", "D40.0", "D44.0",
+               "D48.1")
+circulatory_diseases <- c("I10", "I10-E11-E25-I69", "I10; H81", "I11.9", "I12.5", "I18",
+                          "I20", "I20.0", "I20.8", "I21", "I21.4", "I21.9", "I24.0",
+                          "I25", "I25.2", "I25.5", "I48", "I48.0", "I48.2", "I50",
+                          "I50.9", "I61", "I63", "I63.8", "I64", "I67", "I67-I10",
+                          "I67 - I10", "I69.4", "I70.2", "I80", "I87.2", "I88.8",
+                          "I92.9", "I95", "I99")
+respiratory_diseases <- c("J01", "J01.9", "J02", "J02.9", "J04.0", "J06", "J06.9",
+                          "J09", "J10.1", "J10.8", "J11", "J11.1", "J11.8", "J15",
+                          "J15.9", "J16", "J17.1", "J18", "J18-I20.2", "J18.0",
+                          "J18.1", "J18.8", "J18.9", "J20", "J20.9", "J40", "J42",
+                          "J44", "J44.0", "J44.1", "J44.9", "J45", "J90", "J96.0",
+                          "J96.9", "J96/18")
+digestive_diseases <- c("K11.2", "K12.3", "K21", "K21.0", "K21.9", "K22.6", "K25",
+                        "K25.0", "K25.3", "K25.9", "K26.0", "K27", "K27-J20", "K27.0",
+                        "K27.3", "K27.9", "K29", "K29.0", "K29.1", "K29.2", "K29.6",
+                        "K29.9", "K30", "K35", "K35.1", "K35.3", "K35.5", "K35.8",
+                        "K35.9", "K36", "K40", "K40.9", "K42", "K50", "K52.3", "K52.9",
+                        "K56", "K56.4", "K56.6", "K57.0", "K57.3", "K57.9", "K58",
+                        "K58.0", "K59.1", "K60.3", "K61.0", "K61.2", "K62.1", "K62.5",
+                        "K63", "K63.1", "K63.5", "K64", "K64.2", "K64.3", "K64.8",
+                        "K65", "K71.2", "K71.6", "K72.0", "K72.2", "K73", "K74",
+                        "K74.0", "K74.1", "K74.2", "K74.6", "K75.8", "K77", "K78.6",
+                        "K80", "K80.0", "K80.1", "K80.2", "K80.3", "K80.4", "K80.8",
+                        "K81", "K81.0", "K83", "K83.0", "K85", "K85.0", "K85.8",
+                        "K85.9", "K86.1", "K92", "K92.2", "K92.8", "K92.9")
+genitourinary_diseases <- c("N00", "N13.2", "N13.3", "N13.6", "N17", "N17.9", "N18",
+                            "N18.4", "N18.5", "N18.9", "N19", "N20", "N20.0", "N20.1",
+                            "N20.1, N23, N20.0, K21, M47", "N20.2", "N21.0", "N21.1",
+                            "N23", "N28", "N30.0", "N30.8", "N32.0", "N34.1", "N39.0",
+                            "N40", "N43.2", "N45", "N47", "N48.1", "N70")
+```
+
+Tests:
+
+```{r}
+all_codes <- c(id_intestinal, id_other, neoplasms, circulatory_diseases,
+               respiratory_diseases, digestive_diseases, genitourinary_diseases)
+
+all_codes |> 
+  table() |> 
+  unique()
+
+all(all_codes %in% unique(survey[["DIS"]]$FINAL_DIAG_ICD10))
+```
+
+
 ```{r discharge dataset}
 discharge <- survey[["DIS"]] %>%
   mutate(ICDGroup = as.factor(case_when(
-    FINAL_DIAG_ICD10 %in% c("A04", "A04.8", "A04.9", "A05.9", "A06.4", "A08.0",
-                            "A08.5","A09","A09.0", "A09.9") ~ "ID (Intestinal)",
-    FINAL_DIAG_ICD10 %in% c("A15.0", "A15.3", "A16.2", "A41", "A41.5", "A41.8",
-                            "A41.9", "A48", "A49.9", "A79.8", "A79.9", "A93", "A94",
-                            "A97", "B00.1", "B01", "B01.2", "B01.8", "B02", "B02.7",
-                            "B02.8", "B05", "B05.2", "B05.8", "B05.9", "B17", "B18.1",
-                            "B18.2", "B34.9", "B83.8") ~ "ID (Other)",
-    FINAL_DIAG_ICD10 %in% c("C18", "C18.9; K56.6", "C20", "C22", "C22.9", "C34.9",
-                            "C41", "C61", "C67.9", "C70.0", "C91.9", "C92.2", "C95.0",
-                            "D12.0", "D17", "D21", "D21.9", "D23", "D23.9", "D27",
-                            "D37.4", "D38.1", "D40.0", "D44.0", "D48.1") ~ "Neoplasms",
-    FINAL_DIAG_ICD10 %in% c("I10", "I10-E11-E25-I69", "I10; H81", "I11.9", "I12.5",
-                            "I18", "I20", "I20.0", "I20.8", "I21", "I21.4", "I21.9",
-                            "I24.0", "I25", "I25.2", "I25.5", "I48", "I48.0", "I48.2",
-                            "I50", "I50.9", "I61", "I63", "I63.8", "I64", "I67",
-                            "I67-I10", "I67 - I10", "I69.4", "I70.2", "I80", "I87.2",
-                            "I88.8", "I92.9", "I95", "I99") ~ "Circulatory diseases",
-    FINAL_DIAG_ICD10 %in% c("J01", "J01.9", "J02", "J02.9", "J04.0", "J06", "J06.9",
-                            "J09", "J10.1", "J10.8", "J11", "J11.1", "J11.8", "J15",
-                            "J15.9", "J16", "J17.1", "J18", "J18-I20.2", "J18.0",
-                            "J18.1", "J18.8", "J18.9", "J20", "J20.9", "J40", "J42",
-                            "J44", "J44.0", "J44.1", "J44.9", "J45", "J90","J96.0", "J96.9","J96/18") ~ "Respiratory diseases",
-   FINAL_DIAG_ICD10 %in% c("K11.2","K12.3", "K21", "K21.0", "K21.9", "K22.6", "K25", "K25.0", "K25.3", "K25.9","K26.0", "K27", "K27-J20", "K27.0", "K27.3", "K27.9", "K29", "K29.0", "K29.1","K29.2","K29.6", "K29.9","K30", "K35", "K35.1", "K35.3","K35.5","K35.8", "K35.9","K36", "K40", "K40.9", "K42", "K50", "K52.3", "K52.9", "K56", "K56.4", "K56.6", "K57.0", " K57.3","K57.9","K58","K58.0", "K59.1", "K60.3", "K61.0", "K61.2", "K62.1", "K62.5", "K63", "K63.1","K63.5","K64", "K64.2", "K64.3", "K64.8", "K65", "K71.2", "K71.6", "K72.0", "K72.2", "K73","K74", "K74.0","K74.1","K74.2", "K74.6", "K75.8","K77","K78.6", "K80", "K80.0","K80.1","K80.2","K80.3","K80.4","K80.8", "K81", "K81.0","K83", "K83.0","K85", "K85.0", "K85.8","K85.9", "K86.1","K92","K92.2","K92.8","K92.9") ~ "Digestive diseases",
-   FINAL_DIAG_ICD10 %in%  c("N00","N13.2","N13.3","N13.6","N17","N17.9","N18","N18.4","N18.5","N18.9","N19","N20","N20.0","N20.1","N20.1, N23, N20.0, K21, M47","N20.2","N21.0", "N21.1","N23","N28","N30.0", "N30.8","N32.0", "N34.1", "N39.0", "N40", "N43.2","N45", "N47","N48.1","N70") ~ "Genitourinary diseases",
-
-   TRUE ~ "Other")),
-   ICUduration = difftime(ICU_TO, ICU_FROM, units = "days")+1,
-   CVCduration = difftime(CVC_TO, CVC_FROM, units = "days")+1,
-   PVCduration = difftime(PVC_TO, PVC_FROM, units = "days")+1,
-   UCduration = difftime(UC_TO, UC_FROM, units = "days")+1,
-   IIDduration = difftime(IID_TO, IID_FROM, units = "days")+1
-   )
-
+           FINAL_DIAG_ICD10 %in% id_intestinal ~ "ID (Intestinal)",
+           FINAL_DIAG_ICD10 %in% id_other ~ "ID (Other)",
+           FINAL_DIAG_ICD10 %in% neoplasms ~ "Neoplasms",
+           FINAL_DIAG_ICD10 %in% circulatory_diseases ~ "Circulatory diseases",
+           FINAL_DIAG_ICD10 %in% respiratory_diseases ~ "Respiratory diseases",
+           FINAL_DIAG_ICD10 %in% digestive_diseases ~ "Digestive diseases",
+           FINAL_DIAG_ICD10 %in% genitourinary_diseases ~ "Genitourinary diseases",
+           TRUE ~ "Other")),
+         ICUduration = difftime(ICU_TO, ICU_FROM, units = "days") + 1,
+         CVCduration = difftime(CVC_TO, CVC_FROM, units = "days") + 1,
+         PVCduration = difftime(PVC_TO, PVC_FROM, units = "days") + 1,
+         UCduration = difftime(UC_TO, UC_FROM, units = "days") + 1,
+         IIDduration = difftime(IID_TO, IID_FROM, units = "days") + 1)
 ```
 
 ## Antibiotic use during hospitalization
