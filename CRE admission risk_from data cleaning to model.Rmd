@@ -26,6 +26,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r packages}
 library(dplyr)
 library(purrr)
+library(tidyr)
 library(stringr)
 library(readxl)
 library(gmodels)
@@ -432,39 +433,46 @@ riskdata <- merge2(all_data, CREC_admission) %>%
 # Prepare variables for Lasso modeling
 
 ```{r scaling and fixing data for Lasso}
-###standardize predictor variables before Lasso regression because the penalty is applied to the magnitude of coefficients; standardizing (to mean 0, std dev 1) ensures all variables are treated equally, allowing for meaningful coefficient comparison and selection based on true predictive power, not scale.
-##Check Defaults: Confirm glmmLassoControl settings; standardize = TRUE is the standard for 2026 to ensure the L1 penalty is consistent.
-##Factor Recognition: Ensure categorical variables are recognized as factors so the algorithm can apply group-wise updates. 
+# standardize predictor variables before Lasso regression because the penalty is
+# applied to the magnitude of coefficients; standardizing (to mean 0, std dev 1)
+# ensures all variables are treated equally, allowing for meaningful coefficient
+# comparison and selection based on true predictive power, not scale. Check Defaults:
+# Confirm glmmLassoControl settings; standardize = TRUE is the standard for 2026 to
+# ensure the L1 penalty is consistent. Factor Recognition: Ensure categorical variables
+# are recognized as factors so the algorithm can apply group-wise updates. 
 
 #for continuous variables - check if re-scaled back when interpreting
 
-riskdata_scaled <- 
-  riskdata %>% 
-  mutate(
-    age_s = scale(age), 
-    gender = as.factor(GENDER),
-    hospital = as.factor(SITEID),
-    cormobidity = as.factor(CORMOBIDITY),
-    dementia = as.factor(DEMENTIA),
-    cpd = as.factor(CPD),
-    ctd = as.factor(CTD),
-    pud = as.factor(PUD),
-    mild_liver = as.factor(MILD_LIVER),
-    sev_liver = as.factor(SEV_LIVER),
-    hemiplegia = as.factor(HEMIPLEGIA),
-    sev_renal = as.factor(SEV_RENAL),
-    diabetes_noeod = as.factor(DIAB_NOEOD),
-    diabetes_eod = as.factor(DIAB_EOD),
-  )
+riskdata_scaled <- riskdata %>% 
+  mutate(age_s = scale(age), 
+         across(c(GENDER, SITEID, CORMOBIDITY, DEMENTIA, CPD, CTD, PUD, MILD_LIVER,
+                  SEV_LIVER, HEMIPLEGIA, SEV_RENAL, DIAB_NOEOD, DIAB_EOD),
+                as.factor)) |> 
+  select(CRE_carriage, age_s, GENDER, smoking2, SITEID, children2, married, ambulatory,
+         job_farmer, job_housewife, job_retired, CORMOBIDITY, heart_diseases,
+         vascular_diseases, DEMENTIA, CPD, CTD, PUD, MILD_LIVER, SEV_LIVER, HEMIPLEGIA,
+         SEV_RENAL, DIAB_NOEOD, DIAB_EOD, cancer, alcohol, drug, wardtype, Ab_history,
+         InvasiveHistory, MedicationHistory, HealthcareHistory, hospitaltype,
+         `Circulatory diseases`, `Genitourinary diseases`, `ID (Intestinal)`,
+         `ID (Other)`, Neoplasms, `Respiratory diseases`, `Digestive diseases`)
+#         gender = as.factor(GENDER),
+#         hospital = as.factor(SITEID),
+#         cormobidity = as.factor(CORMOBIDITY),
+#         dementia = as.factor(DEMENTIA),
+#         cpd = as.factor(CPD),
+#         ctd = as.factor(CTD),
+#         pud = as.factor(PUD),
+#         mild_liver = as.factor(MILD_LIVER),
+#         sev_liver = as.factor(SEV_LIVER),
+#         hemiplegia = as.factor(HEMIPLEGIA),
+#         sev_renal = as.factor(SEV_RENAL),
+#         diabetes_noeod = as.factor(DIAB_NOEOD),
+#         diabetes_eod = as.factor(DIAB_EOD),
 
 #no patient has AIDS, also not include pvd as no cases have pvd
 
-## to fix NAs and check data
-vars_to_keep <- c("CRE_carriage", "age_s", "gender", "smoking2","hospital", "SITEID", "children2", "married", "ambulatory", "job_farmer", "job_housewife", "job_retired", "cormobidity", "heart_diseases", "vascular_diseases", "dementia", "cpd", "ctd","pud","mild_liver", "sev_liver", "hemiplegia", "sev_renal", "diabetes_noeod","diabetes_eod", "cancer","alcohol", "drug","wardtype","Ab_history", "InvasiveHistory", "MedicationHistory","HealthcareHistory", "hospitaltype", "ICD_Circulatory", "ICD_Genitourinary", "ICD_IDIntestinal", "ICD_IDOther", "ICD_Neoplasms", "ICD_Respiratory", "ICD_Digestive")
-
-data_clean <- riskdata_scaled[complete.cases(riskdata_scaled[,vars_to_keep]),]
-
-print(nrow(riskdata_scaled) - nrow(data_clean)) # Check how many rows you lost
+data_clean <- na.exclude(riskdata_scaled)
+nrow(riskdata_scaled) - nrow(data_clean) # Check how many rows you lost
 ```
 
 # Fit a simple glmm model
