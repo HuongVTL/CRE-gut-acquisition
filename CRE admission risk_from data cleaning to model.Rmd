@@ -500,72 +500,53 @@ Q.start <- as.numeric(VarCorr(simple_mixed_model))
 # Find the best lambda for glmmLasso
 
 ```{r find best lambda for glmmLasso}
-
 # Define a sequence of lambda values (from high penalty to low)
-lambda_seq <- seq(10, 0, by = -0.1)
+lambda_seq <- seq(10, 0, by = -.1)
 
 #fixed formula
-fixed_formula <- CRE_carriage ~ age_s +gender+smoking2+children2+married+ambulatory+
-  job_farmer+job_housewife+job_retired+cormobidity+
-  vascular_diseases+cpd+ctd+pud+mild_liver+sev_liver+hemiplegia+sev_renal+diabetes_noeod+diabetes_eod+cancer+
-  alcohol +drug+wardtype+InvasiveHistory +MedicationHistory+HealthcareHistory + hospitaltype+ Ab_history+
-  ICD_Circulatory + ICD_Genitourinary + ICD_IDIntestinal + ICD_IDOther +
-  ICD_Neoplasms+ICD_Respiratory+ICD_Digestive
+fixed_formula <- update(mixed_formula, . ~ . - (1| SITEID))
 
 # Initialize a vector to store BIC or AIC values
 baic_vec <- rep(Inf, length(lambda_seq))
 
 # Create a loop to test each lambda
-for(j in 1:length(lambda_seq)){
+for(j in 1:length(lambda_seq)) {
   print(paste("Testing Lambda:", lambda_seq[j]))
   #Use try() to prevent the loop from breaking if one model fails to converge
   glmm_temp <- try(glmmLasso(
     fix = fixed_formula,
-    rnd = list(hospital=~1),
+    rnd = list(hospital = ~1),
     data = data_clean,
     lambda = lambda_seq[j],
     family = binomial(),
     switch.NR = TRUE,
     final.re = FALSE,
-    control=list(start=Delta.start,q_start=Q.start)),
+    control = list(start = Delta.start, q_start = Q.start)),
     silent = TRUE)
   #If the model fit successfully, save the BIC
-  if(!inherits(glmm_temp, "try-error")){
-    baic_vec[j] <- glmm_temp$bic
-  }
+  if (!inherits(glmm_temp, "try-error")) baic_vec[j] <- glmm_temp$bic
 }
 
 # Find the lambda that produced the lowest BIC
-opt_lambda <- lambda_seq[which.min(baic_vec)]
-print(paste("Optimal Lambda is:", opt_lambda))
-
+(opt_lambda <- lambda_seq[which.min(baic_vec)])
 baic_vec
-
-failed_indices <- which(is.infinite(baic_vec))
-print(lambda_seq[failed_indices])
-
-
-
+lambda_seq[which(is.infinite(baic_vec))]
 ```
 
 # Fit the final Lasso model
 
 ```{r fit model}
-
 CRE_admission_model <- glmmLasso(
-  fix=fixed_formula,
-  rnd=list(hospital = ~1),
+  fix = fixed_formula,
+  rnd = list(hospital = ~1),
   data = data_clean,
   lambda = opt_lambda, # larger -> stronger regularization and more coefficients shrunk to zero; smaller reduces penalty
   family = binomial(link = logit),
-  switch.NR=FALSE, # switch to the faster Newton-Raphson method to speed up model fitting process
-  final.re=TRUE,
-  control=list(start=Delta.start,q_start=Q.start)
-  )
+  switch.NR = FALSE, # switch to the faster Newton-Raphson method to speed up model fitting process
+  final.re = TRUE,
+  control = list(start = Delta.start, q_start = Q.start))
 
-CRE_admission_model %>% summary()
-model_summary <- summary(CRE_admission_model)
-
+(model_summary <- summary(CRE_admission_model))
 ```
 
 # Final estimates
