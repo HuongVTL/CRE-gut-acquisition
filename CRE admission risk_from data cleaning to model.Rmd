@@ -169,70 +169,9 @@ CRKP_discharge <- CRE_discharge %>%
 
 ## Survey data set
 
-```{r}
-survey$SCR <- survey$SCR |> 
-  select(USUBJID, SPEC_DATE_DISCHARGE) |> 
-  left_join(discharge_date, "USUBJID") |> 
-  mutate(DISCHARGE_DATE = coalesce(SPEC_DATE_DISCHARGE, `Discharge date`)) |>
-  select(USUBJID, DISCHARGE_DATE)
+### Tests
 
-survey$ADM <- survey$ADM |> 
-  select(USUBJID, SITEID, YEAR_BIRTH, GENDER, ADMISSION_DATE, WARD_3, CORMOBIDITY,
-         MI_HIS, CHF, PVD, CVD, DEMENTIA, CPD, CTD, PUD, MILD_LIVER, SEV_LIVER,
-         HEMIPLEGIA, SEV_RENAL, starts_with("DIAB"), TUMOR_NOMETA, LEUKEMIA, LYMPHOMA,
-         META_TUMOR, ANB_ADMISSION) |> 
-  mutate(hospitaltype = ifelse(SITEID %in% c("010", "159"), 1, 2),
-         age = 2025 - YEAR_BIRTH + 1,
-         Ab_history = ifelse(ANB_ADMISSION %in% c(1, 4), 0, 1),
-         wardtype = ifelse(WARD_3 == 1, "surgical", "medical/ID")) |> 
-  select(-YEAR_BIRTH, -ANB_ADMISSION, -WARD_3)
-
-admission <- survey |> 
-  extract(c("SCR", "ADM")) |> 
-  reduce(merge2) |> 
-  mutate(los = as.numeric((as.POSIXct(DISCHARGE_DATE) -
-                             as.POSIXct(ADMISSION_DATE)) / 86400 + 1)) |>
-  select(-DISCHARGE_DATE, -ADMISSION_DATE)
-```
-
-```{r}
-survey$DEMO_HIS <- survey$DEMO_HIS |> 
-  select(USUBJID, MARITAL, starts_with("JOB"), ADULT, CHILDREN, AMBULATORY, SMOKING,
-         starts_with("ALCOHOL"), starts_with("DRUG")) |> 
-  mutate(job = JOB_SPECIFY |>
-           case_match(c("Cán bộ công chức", "Cán bộ xã") ~ 1,
-                      c("Bảo vệ", "Cơ khí","Hộ lý", "Lái tàu thủy", "Lao động tự do",
-                        "Vệ sỹ") ~ 4,
-                      c("già", "Già", "Hết độ tuổi lao động") ~ 8,
-                      c("Ở nhà", "Tự do") ~ 9, .default = as.numeric(JOB)) |> 
-           case_match(6 ~ "farmer", 7 ~ "housewife", 8 ~ "retired",
-                      .default = "all other jobs"),
-         householdsize = ADULT + CHILDREN,
-         smoking = case_match(SMOKING, "1" ~ "current smoker",
-                                       "2" ~ "former smoker",
-                                       .default = "all non-smokers"),
-         children = ifelse(CHILDREN < 1, "no children in the household",
-                                         "with children in the household"),
-         married = ifelse(MARITAL == 1, "married", "other"),
-         ambulatory = ifelse(AMBULATORY == 1, "independent", "not independent"),
-         across(starts_with(c("ALCOHOL", "DRUG")), as.integer),
-         alcohol = ifelse(ALCOHOL_CUTDOWN + ALCOHOL_ANNOYED + ALCOHOL_GUILTY +
-                            ALCOHOL_DRUG < 5, "0 problem", "1-4 problem"),
-         drug = ifelse(DRUG_CUTDOWN + DRUG_ANNOYED + DRUG_GUILTY + 
-                         DRUG_DRUG < 5, "0 problem", "1-4 problem")) |> 
-  select(-MARITAL, -starts_with("JOB"), -ADULT, -CHILDREN, -AMBULATORY, -SMOKING,
-         -starts_with("ALCOHOL", FALSE), -starts_with("DRUG", FALSE))
-```
-
-```{r}
-survey$DEMO_HIS_HISTORY_GRID <- survey$DEMO_HIS_HISTORY_GRID |>
-  select(USUBJID, HIS_CONDITION, HIS_YN) |> 
-  mutate(across(HIS_YN, ~ .x > 1),
-         across(HIS_CONDITION, ~ c("InvasiveHistory",
-                                   "MedicationHistory", "TravelHistory",
-                                   "HealthcareHistory")[as.integer(.x)])) |> 
-  pivot_wider(names_from = HIS_CONDITION, values_from = HIS_YN)
-```
+#### Diseases
 
 The diseases categories:
 
@@ -294,17 +233,124 @@ all(all_codes %in% unique_codes)
 setdiff(all_codes, unique_codes)
 ```
 
+### Antibiotics
+
+The antibiotics categories:
+
+```{r}
+cefoperazone <- c("Cefoperazol","Cefoperazole", "Cefoperazon", "Cefoperazone")
+ampicill_sulb <- "Senitram"
+cefamandol <- c("Cefamandol", "Cefemandol")
+cefo_sulb <- "Vitabactam"
+cefazolin <- "Cefazolin"
+cefprozil <- "Cefprozil"
+cefradin <- "Cefradin"
+ceftizoxime <- c("Ceftizoxim", "Ceftizoxime", "Ceftizoxom", "Ceftrizoxim")
+cefmetazol <- "Cefmetazol"
+ticarcillin_acid_clavulanic <- c("Ticarcillin + Acid clavulanic",
+                                 "Ticarcillin + Clavulanic",
+                                 "Ticarcillin/acid clavulanic")
+```
+
+Tests:
+
+```{r}
+unique_ab <- unique(survey$ANT_ANB_HOSP_GRID$ANB_OTHER_SPEC)
+all_ab <- c(cefoperazone, ampicill_sulb, cefamandol, cefo_sulb,
+            cefazolin, cefprozil, cefradin, ceftizoxime, cefmetazol,
+            ticarcillin_acid_clavulanic)
+
+all_ab |> 
+  table() |> 
+  unique()
+
+all(all_ab %in% unique_ab)
+setdiff(all_ab, unique_ab)
+```
+
+
+### Data reformatting
+
+```{r}
+survey$SCR <- survey$SCR |>
+  select(USUBJID, SPEC_DATE_DISCHARGE) |> 
+  left_join(discharge_date, "USUBJID") |> 
+  mutate(DISCHARGE_DATE = coalesce(SPEC_DATE_DISCHARGE, `Discharge date`)) |>
+  select(USUBJID, DISCHARGE_DATE)
+
+survey$ADM <- survey$ADM |> 
+  select(USUBJID, SITEID, YEAR_BIRTH, GENDER, ADMISSION_DATE, WARD_3, CORMOBIDITY,
+         MI_HIS, CHF, PVD, CVD, DEMENTIA, CPD, CTD, PUD, MILD_LIVER, SEV_LIVER,
+         HEMIPLEGIA, SEV_RENAL, starts_with("DIAB"), TUMOR_NOMETA, LEUKEMIA, LYMPHOMA,
+         META_TUMOR, ANB_ADMISSION) |> 
+  mutate(hospitaltype = ifelse(SITEID %in% c("010", "159"), 1, 2),
+         age = 2025 - YEAR_BIRTH + 1,
+         Ab_history = ifelse(ANB_ADMISSION %in% c(1, 4), 0, 1),
+         wardtype = ifelse(WARD_3 == 1, "surgical", "medical/ID")) |> 
+  select(-YEAR_BIRTH, -ANB_ADMISSION, -WARD_3)
+
+tabs <- c("SCR", "ADM")
+
+survey$admission <- survey |> 
+  extract(tabs) |> 
+  reduce(merge2) |> 
+  mutate(los = as.numeric((as.POSIXct(DISCHARGE_DATE) -
+                             as.POSIXct(ADMISSION_DATE)) / 86400 + 1)) |>
+  select(-DISCHARGE_DATE, -ADMISSION_DATE)
+
+survey[tabs] <- NULL
+```
+
+```{r}
+survey$DEMO_HIS <- survey$DEMO_HIS |> 
+  select(USUBJID, MARITAL, starts_with("JOB"), ADULT, CHILDREN, AMBULATORY, SMOKING,
+         starts_with("ALCOHOL"), starts_with("DRUG")) |> 
+  mutate(job = JOB_SPECIFY |>
+           case_match(c("Cán bộ công chức", "Cán bộ xã") ~ 1,
+                      c("Bảo vệ", "Cơ khí","Hộ lý", "Lái tàu thủy", "Lao động tự do",
+                        "Vệ sỹ") ~ 4,
+                      c("già", "Già", "Hết độ tuổi lao động") ~ 8,
+                      c("Ở nhà", "Tự do") ~ 9, .default = as.numeric(JOB)) |> 
+           case_match(6 ~ "farmer", 7 ~ "housewife", 8 ~ "retired",
+                      .default = "all other jobs"),
+         householdsize = ADULT + CHILDREN,
+         smoking = case_match(SMOKING, "1" ~ "current smoker",
+                                       "2" ~ "former smoker",
+                                       .default = "all non-smokers"),
+         children = ifelse(CHILDREN < 1, "no children in the household",
+                                         "with children in the household"),
+         married = ifelse(MARITAL == 1, "married", "other"),
+         ambulatory = ifelse(AMBULATORY == 1, "independent", "not independent"),
+         across(starts_with(c("ALCOHOL", "DRUG")), as.integer),
+         alcohol = ifelse(ALCOHOL_CUTDOWN + ALCOHOL_ANNOYED + ALCOHOL_GUILTY +
+                            ALCOHOL_DRUG < 5, "0 problem", "1-4 problem"),
+         drug = ifelse(DRUG_CUTDOWN + DRUG_ANNOYED + DRUG_GUILTY + 
+                         DRUG_DRUG < 5, "0 problem", "1-4 problem")) |> 
+  select(-MARITAL, -starts_with("JOB"), -ADULT, -CHILDREN, -AMBULATORY, -SMOKING,
+         -starts_with("ALCOHOL", FALSE), -starts_with("DRUG", FALSE))
+```
+
+```{r}
+survey$DEMO_HIS_HISTORY_GRID <- survey$DEMO_HIS_HISTORY_GRID |>
+  select(USUBJID, HIS_CONDITION, HIS_YN) |> 
+  mutate(across(HIS_YN, ~ .x > 1),
+         across(HIS_CONDITION, ~ c("InvasiveHistory",
+                                   "MedicationHistory", "TravelHistory",
+                                   "HealthcareHistory")[as.integer(.x)])) |> 
+  pivot_wider(names_from = HIS_CONDITION, values_from = HIS_YN)
+```
 
 ```{r}
 survey$DIS <- survey$DIS |>
-  select(USUBJID, FINAL_DIAG_ICD10, ends_with(c("TO", "FROM"))) |> 
+  select(USUBJID, DISCHARGE, FINAL_DIAG_ICD10, ICU, CVC, PVC, UC, IID,
+         ends_with(c("TO", "FROM"))) |> 
   mutate(ICDGroup = as.factor(case_when(
-           FINAL_DIAG_ICD10 %in% id_intestinal ~ "ID (Intestinal)",
-           FINAL_DIAG_ICD10 %in% id_other ~ "ID (Other)",
-           FINAL_DIAG_ICD10 %in% neoplasms ~ "Neoplasms",
-           FINAL_DIAG_ICD10 %in% circulatory_diseases ~ "Circulatory diseases",
-           FINAL_DIAG_ICD10 %in% respiratory_diseases ~ "Respiratory diseases",
-           FINAL_DIAG_ICD10 %in% digestive_diseases ~ "Digestive diseases",
+           FINAL_DIAG_ICD10 %in% id_intestinal          ~ "ID (Intestinal)",
+           FINAL_DIAG_ICD10 %in% id_other               ~ "ID (Other)",
+           FINAL_DIAG_ICD10 %in% neoplasms              ~ "Neoplasms",
+           FINAL_DIAG_ICD10 %in% circulatory_diseases   ~ "Circulatory diseases",
+           FINAL_DIAG_ICD10 %in% respiratory_diseases   ~ "Respiratory diseases",
+           FINAL_DIAG_ICD10 %in% digestive_diseases     ~ "Digestive diseases",
            FINAL_DIAG_ICD10 %in% genitourinary_diseases ~ "Genitourinary diseases",
            .default = "Other")),
          ICUduration = duration(ICU_FROM, ICU_TO),
@@ -315,20 +361,65 @@ survey$DIS <- survey$DIS |>
   select(-FINAL_DIAG_ICD10, -ends_with(c("TO", "FROM")))
 ```
 
+```{r}
+survey$ANT <- survey$ANT |>
+  select(USUBJID, ANB_HOS) |> 
+  mutate(across(ANB_HOS, ~ .x > 2))
+```
 
+```{r}
+survey$ANT_ANB_HOSP_GRID <- survey$ANT_ANB_HOSP_GRID |>
+  select(USUBJID, ANB_HOSP_NAME, ANB_OTHER_SPEC, ANB_HOSP_START_DATE, ANB_HOSP_END_DATE) |> 
+  mutate(agent = case_when(ANB_OTHER_SPEC %in% cefoperazone  ~ "Cefoperazone",
+                           ANB_OTHER_SPEC %in% ampicill_sulb ~ "Ampicillin_sulbactam",
+                           ANB_OTHER_SPEC %in% cefamandol    ~ "Cefamandol",
+                           ANB_OTHER_SPEC %in% cefo_sulb     ~ "Cefoperazon_sulbactam",
+                           ANB_OTHER_SPEC %in% cefazolin     ~ "Cefazolin",
+                           ANB_OTHER_SPEC %in% cefprozil     ~ "Cefprozil",
+                           ANB_OTHER_SPEC %in% cefradin      ~ "Cefradin",
+                           ANB_OTHER_SPEC %in% ceftizoxime   ~ "Ceftizoxime",
+                           ANB_OTHER_SPEC %in% cefmetazol    ~ "Cefmetazol",
+                           ANB_OTHER_SPEC %in% ticarcillin_acid_clavulanic ~
+                             "Ticarcillin/acid clavulanic",
+                           .default = ANB_HOSP_NAME),
+         number = 1,
+         DOT = as.numeric((ANB_HOSP_END_DATE - ANB_HOSP_START_DATE) / 86400 + 1))
 
+# calculate DOT of antibiotics used in hospital for each patient, at patient level
+survey$antibiotic_hospital_DOT <- survey$ANT_ANB_HOSP_GRID %>%
+  group_by(USUBJID) %>%
+  summarise(number = sum(number), DOT = sum(DOT))
+```
 
+Merging:
 
-
-
-
+```{r}
+all_data <- reduce(survey, merge2)
+```
 
 
 ```{r}
-
-survey$ANT %<>% select(USUBJID, ANB_HOS)
-survey$ANT_ANB_HOSP_GRID %<>% select(USUBJID, ANB_OTHER_SPEC)
+all_data <- list(
+#    admission,
+#    select(survey$DEMO_HIS, USUBJID, smoking, children, married, ambulatory, job,
+#           alcohol, drug),
+#    select(InvasiveHistory, USUBJID, InvasiveHistory),
+#    select(MedicationHistory, USUBJID, MedicationHistory),
+#    select(TravelHistory, USUBJID, TravelHistory),
+#    select(HealthcareHistory, USUBJID, HealthcareHistory),
+##    select(discharge, USUBJID, ICDGroup, ICUduration, CVCduration, PVCduration,
+##           UCduration, IIDduration, DISCHARGE, ICU, CVC, PVC, UC, IID),
+#    select(antibiotic_hospital, USUBJID, antibiotic_hospital),
+#    antibiotic_hospital_DOT) |> 
+  reduce(merge2)
 ```
+
+```{r}
+names(survey$DIS)
+```
+
+
+
 
 
 
