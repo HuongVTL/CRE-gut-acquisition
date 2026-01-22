@@ -233,7 +233,7 @@ all(all_codes %in% unique_codes)
 setdiff(all_codes, unique_codes)
 ```
 
-### Antibiotics
+#### Antibiotics
 
 The antibiotics categories:
 
@@ -344,7 +344,7 @@ survey$DEMO_HIS_HISTORY_GRID <- survey$DEMO_HIS_HISTORY_GRID |>
 survey$DIS <- survey$DIS |>
   select(USUBJID, DISCHARGE, FINAL_DIAG_ICD10, ICU, CVC, PVC, UC, IID,
          ends_with(c("TO", "FROM"))) |> 
-  mutate(ICDGroup = as.factor(case_when(
+  mutate(ICDGroup = case_when(
            FINAL_DIAG_ICD10 %in% id_intestinal          ~ "ID (Intestinal)",
            FINAL_DIAG_ICD10 %in% id_other               ~ "ID (Other)",
            FINAL_DIAG_ICD10 %in% neoplasms              ~ "Neoplasms",
@@ -352,7 +352,7 @@ survey$DIS <- survey$DIS |>
            FINAL_DIAG_ICD10 %in% respiratory_diseases   ~ "Respiratory diseases",
            FINAL_DIAG_ICD10 %in% digestive_diseases     ~ "Digestive diseases",
            FINAL_DIAG_ICD10 %in% genitourinary_diseases ~ "Genitourinary diseases",
-           .default = "Other")),
+           .default = "Other"),
          ICUduration = duration(ICU_FROM, ICU_TO),
          CVCduration = duration(CVC_FROM, CVC_TO),
          PVCduration = duration(PVC_FROM, PVC_TO),
