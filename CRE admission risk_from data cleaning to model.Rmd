@@ -159,18 +159,18 @@ CRKP_discharge <- CRE_discharge %>%
 ## Admission dataset
 
 ```{r Admission variables}
-survey[["ADM"]] <- survey[["ADM"]] %>%
+survey$ADM <- survey$ADM %>%
   mutate(hospitaltype = ifelse(SITEID %in% c("010","159"), 1, 2),
          age = 2025 - YEAR_BIRTH + 1,
          Ab_history = ifelse(ANB_ADMISSION %in% c(1, 4), 0, 1),
          wardtype = as.factor(ifelse(WARD_3 == 1, "surgical", "medical/ID")))
 
 admission <- discharge_date |>
-  merge2(survey[["SCR"]]) |>
+  merge2(survey$SCR) |>
   mutate(DISCHARGE_DATE = ifelse(is.na(SPEC_DATE_DISCHARGE),
                                  `Discharge date`, SPEC_DATE_DISCHARGE)) %>%
   select(USUBJID, DISCHARGE_DATE) |> 
-  merge2(survey[["ADM"]]) %>%
+  merge2(survey$ADM) %>%
   mutate(los = as.numeric((as.POSIXct(DISCHARGE_DATE) -
                              as.POSIXct(ADMISSION_DATE)) / 86400 + 1))
 ```
@@ -179,12 +179,12 @@ admission <- discharge_date |>
 ## General info dataset
 
 ```{r}
-unique(survey[["DEMO_HIS"]]$JOB_final)
+unique(survey$DEMO_HIS$JOB_final)
 ```
 
 
 ```{r General information}
-survey[["DEMO_HIS"]] <- survey[["DEMO_HIS"]] %>%
+survey$DEMO_HIS <- survey$DEMO_HIS %>%
   mutate(JOB_final = case_match(JOB_SPECIFY,
                                 c("Cán bộ công chức", "Cán bộ xã") ~ 1,
                                 c("Bảo vệ", "Cơ khí","Hộ lý", "Lái tàu thủy",
@@ -226,19 +226,19 @@ survey[["DEMO_HIS"]] <- survey[["DEMO_HIS"]] %>%
 ```{r other history}
 ## MARC: this is not a good idea
 
-InvasiveHistory <- survey[["DEMO_HIS_HISTORY_GRID"]] %>%
+InvasiveHistory <- survey$DEMO_HIS_HISTORY_GRID %>%
   filter(HIS_CONDITION == 1) %>%
   mutate(InvasiveHistory = as.factor(ifelse(HIS_YN == 2, "Yes", "No")))
          
-MedicationHistory <- survey[["DEMO_HIS_HISTORY_GRID"]] %>%
+MedicationHistory <- survey$DEMO_HIS_HISTORY_GRID %>%
   filter(HIS_CONDITION == 2) %>%
   mutate(MedicationHistory = as.factor(ifelse(HIS_YN == 2, "Yes", "No")))
 
-TravelHistory <- survey[["DEMO_HIS_HISTORY_GRID"]] %>%
+TravelHistory <- survey$DEMO_HIS_HISTORY_GRID %>%
   filter(HIS_CONDITION == 3) %>%
   mutate(TravelHistory = as.factor(ifelse(HIS_YN == 2, "Yes", "No")))
 
-HealthcareHistory <- survey[["DEMO_HIS_HISTORY_GRID"]] %>%
+HealthcareHistory <- survey$DEMO_HIS_HISTORY_GRID %>%
   filter(HIS_CONDITION == 4) %>%
   mutate(HealthcareHistory = as.factor(ifelse(HIS_YN == 2, "Yes", "No")))
 ```
@@ -294,7 +294,7 @@ genitourinary_diseases <- c("N00", "N13.2", "N13.3", "N13.6", "N17", "N17.9", "N
 Tests:
 
 ```{r}
-unique_codes <- unique(survey[["DIS"]]$FINAL_DIAG_ICD10)
+unique_codes <- unique(survey$DIS$FINAL_DIAG_ICD10)
 all_codes <- c(id_intestinal, id_other, neoplasms, circulatory_diseases,
                respiratory_diseases, digestive_diseases, genitourinary_diseases)
 
@@ -308,7 +308,7 @@ setdiff(all_codes, unique_codes)
 
 
 ```{r discharge dataset}
-discharge <- survey[["DIS"]] %>%
+discharge <- survey$DIS %>%
   mutate(ICDGroup = as.factor(case_when(
            FINAL_DIAG_ICD10 %in% id_intestinal ~ "ID (Intestinal)",
            FINAL_DIAG_ICD10 %in% id_other ~ "ID (Other)",
@@ -345,7 +345,7 @@ ticarcillin_acid_clavulanic <- c("Ticarcillin + Acid clavulanic",
 Tests:
 
 ```{r}
-unique_ab <- unique(survey[["ANT_ANB_HOSP_GRID"]]$ANB_OTHER_SPEC)
+unique_ab <- unique(survey$ANT_ANB_HOSP_GRID$ANB_OTHER_SPEC)
 all_ab <- c(cefoperazone, ampicill_sulb, cefamandol, cefo_sulb,
             cefazolin, cefprozil, cefradin, ceftizoxime, cefmetazol,
             ticarcillin_acid_clavulanic)
@@ -360,11 +360,11 @@ setdiff(all_ab, unique_ab)
 
 ```{r ANTIBIOTIC USE DURING HOSPITALIZATION}
 # Antibiotic use during hospitalization at patient level
-antibiotic_hospital <- survey[["ANT"]] %>%
+antibiotic_hospital <- survey$ANT %>%
   mutate(antibiotic_hospital = ifelse(ANB_HOS == 3, "yes", "no"))
 
 #antibiotic agents used in hospital, each patient can have more than 1 antibiotic agent
-antibiotic_hospital_agents <- survey[["ANT_ANB_HOSP_GRID"]] %>%
+antibiotic_hospital_agents <- survey$ANT_ANB_HOSP_GRID %>%
   mutate(agent = case_when(ANB_OTHER_SPEC %in% cefoperazone ~ "Cefoperazone",
                            ANB_OTHER_SPEC %in% ampicill_sulb ~ "Ampicillin_sulbactam",
                            ANB_OTHER_SPEC %in% cefamandol ~ "Cefamandol",
