@@ -220,6 +220,17 @@ survey$DEMO_HIS <- survey$DEMO_HIS |>
          -starts_with("ALCOHOL", FALSE), -starts_with("DRUG", FALSE))
 ```
 
+```{r}
+survey$DEMO_HIS_HISTORY_GRID <- survey$DEMO_HIS_HISTORY_GRID |>
+  select(USUBJID, HIS_CONDITION, HIS_YN) |> 
+  mutate(across(HIS_YN, ~ .x > 1),
+         across(HIS_CONDITION, ~ c("InvasiveHistory",
+                                   "MedicationHistory", "TravelHistory",
+                                   "HealthcareHistory")[as.integer(.x)])) |> 
+  pivot_wider(names_from = HIS_CONDITION, values_from = HIS_YN)
+```
+
+
 
 
 
@@ -228,9 +239,6 @@ survey$DEMO_HIS <- survey$DEMO_HIS |>
 
 
 ```{r}
-survey$DEMO_HIS_HISTORY_GRID %<>% select(USUBJID, DEMO_HIS_HISTORY_GRID_SEQ,
-                                         HIS_CONDITION, HIS_YN)
-
 survey$DIS %<>% select(USUBJID, FINAL_DIAG_ICD10)
 survey$ANT %<>% select(USUBJID, ANB_HOS)
 survey$ANT_ANB_HOSP_GRID %<>% select(USUBJID, ANB_OTHER_SPEC)
