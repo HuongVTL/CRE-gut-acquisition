@@ -78,9 +78,11 @@ readxl_allsheet <- function(filename, tibble = FALSE) {
   # I prefer straight data.frames
   # but if you like tidyverse tibbles (the default with read_excel)
   # then just pass tibble = TRUE
-  sheets <- filename |>
-    excel_sheets2() |> 
-    setdiff("Category")
+  sheets <- c("SCR", "ADM", "DEMO_HIS", "DEMO_HIS_HISTORY_GIRD", "DIS", "ANT",
+              "ANT_ANB_HOSP_GRID")
+#  sheets <- filename |>
+#    excel_sheets2() |> 
+#    setdiff("Category")
   x <- lapply(sheets, function(X) {
     filename |>
       read_excel2(sheet = X) |> 
