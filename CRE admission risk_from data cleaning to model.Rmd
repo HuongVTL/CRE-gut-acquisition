@@ -478,23 +478,23 @@ nrow(riskdata_scaled) - nrow(data_clean) # Check how many rows you lost
 # Fit a simple glmm model
 
 ```{r fit a simple model glmm}
+mixed_formula <- CRE_carriage ~ age_s + GENDER + smoking2 + children2 + married +
+  ambulatory + job_farmer + job_housewife + job_retired + CORMOBIDITY + 
+  vascular_diseases + CPD + CTD + PUD + MILD_LIVER + SEV_LIVER + HEMIPLEGIA +
+  SEV_RENAL + DIAB_NOEOD + DIAB_EOD + cancer + alcohol + drug + wardtype +
+  InvasiveHistory + MedicationHistory + HealthcareHistory + hospitaltype + Ab_history +
+  `Circulatory diseases` + `Genitourinary diseases` + `ID (Intestinal)` +
+  `ID (Other)` + Neoplasms + `Respiratory diseases` + `Digestive diseases` +
+  (1| SITEID)                           # not include heart_diseases and dementia yet -
 
-mixed_formula <- CRE_carriage ~ age_s +gender+smoking2+children2+married+ambulatory+
-  job_farmer+job_housewife+job_retired+cormobidity+
-  vascular_diseases+cpd+ctd+pud+mild_liver+sev_liver+hemiplegia+sev_renal+diabetes_noeod+diabetes_eod+cancer+
-  alcohol +drug+wardtype+InvasiveHistory +MedicationHistory+HealthcareHistory + hospitaltype+ Ab_history+
-  ICD_Circulatory + ICD_Genitourinary + ICD_IDIntestinal + ICD_IDOther +
-  ICD_Neoplasms+ICD_Respiratory+ICD_Digestive +( 1| SITEID) #not include heart_diseases and dementia yet -
 
-
-simple_mixed_model <- glmer(mixed_formula, data = data_clean, family = binomial(link = "logit"))
+simple_mixed_model <- glmer(mixed_formula, data_clean, binomial(link = "logit"))
 summary(simple_mixed_model)
 initial_fixed_estimates <- fixef(simple_mixed_model)
 initial_random_estimates <- ranef(simple_mixed_model)
-Delta.start<-c(as.numeric(initial_fixed_estimates),rep(0,100),
-               as.numeric(initial_random_estimates))
-Q.start<-as.numeric(VarCorr(simple_mixed_model))
-
+Delta.start <- c(as.numeric(initial_fixed_estimates), rep(0, 100),
+                 as.numeric(initial_random_estimates))
+Q.start <- as.numeric(VarCorr(simple_mixed_model))
 ```
 
 # Find the best lambda for glmmLasso
