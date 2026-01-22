@@ -552,12 +552,10 @@ CRE_admission_model <- glmmLasso(
 # Final estimates
 
 ``` {r extract ORs and 95%CI}
-
 std_errors <- model_summary$coefficients[, "StdErr"]; 
-tab <- cbind(Est = coef(CRE_admission_model), LL = coef(CRE_admission_model) - 1.96 * std_errors, UL = coef(CRE_admission_model) + 1.96 *std_errors); 
-
-round(cbind(exp(tab),p=coef(summary(CRE_admission_model))[,4]),digits = 3) #p-value
-
-
+tab <- cbind(Est = coef(CRE_admission_model),
+             LL = coef(CRE_admission_model) - 1.96 * std_errors,
+             UL = coef(CRE_admission_model) + 1.96 * std_errors); 
+round(cbind(exp(tab), p = coef(summary(CRE_admission_model))[, 4]), digits = 3) #p-value
 ```
                                  
