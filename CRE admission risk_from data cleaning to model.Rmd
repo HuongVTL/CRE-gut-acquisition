@@ -177,8 +177,8 @@ duration <- function(from, to) difftime(to, from, units = "days") + 1
 Loading the CRF data:
 
 ```{r}
-survey <- c("SCR", "ADM", "DEMO_HIS", "DEMO_HIS_HISTORY_GRID", "DIS", "ANT",
-            "ANT_ANB_HOSP_GRID") |> 
+CRF <- c("SCR", "ADM", "DEMO_HIS", "DEMO_HIS_HISTORY_GRID", "DIS", "ANT",
+         "ANT_ANB_HOSP_GRID") |> 
   set_names() |> 
   map(read_excel2, file = CRF_file) |>
   map(dplyr::filter, entry == 2)
@@ -198,7 +198,7 @@ discharge_date <- no_sample_discharge_dates |>
 On diseases categories:
 
 ```{r}
-unique_codes <- unique(survey$DIS$FINAL_DIAG_ICD10)
+unique_codes <- unique(CRF$DIS$FINAL_DIAG_ICD10)
 all_codes <- c(id_intestinal, id_other, neoplasms, circulatory_diseases,
                respiratory_diseases, digestive_diseases, genitourinary_diseases)
 
@@ -213,7 +213,7 @@ setdiff(all_codes, unique_codes)
 On antibiotics categories:
 
 ```{r}
-unique_ab <- unique(survey$ANT_ANB_HOSP_GRID$ANB_OTHER_SPEC)
+unique_ab <- unique(CRF$ANT_ANB_HOSP_GRID$ANB_OTHER_SPEC)
 all_ab <- c(cefoperazone, ampicill_sulb, cefamandol, cefo_sulb,
             cefazolin, cefprozil, cefradin, ceftizoxime, cefmetazol,
             ticarcillin_acid_clavulan)
@@ -229,21 +229,21 @@ setdiff(all_ab, unique_ab)
 
 ### Reformatting
 
-The `SCR` tab patched with the dates of discharge of the patients who did not provide
-any sample at discharge:
+The `SCR` tab (screening data) patched with the dates of discharge of the patients who
+did not provide any sample at discharge:
 
 ```{r}
-survey$SCR <- survey$SCR |>
+CRF$SCR <- CRF$SCR |>
   select(USUBJID, SPEC_DATE_DISCHARGE) |> 
   left_join(discharge_date, "USUBJID") |> 
   mutate(DISCHARGE_DATE = coalesce(SPEC_DATE_DISCHARGE, `Discharge date`)) |>
   select(USUBJID, DISCHARGE_DATE)
 ```
 
-The `ADM` tab:
+The `ADM` tab (admission data):
 
 ```{r}
-survey$ADM <- survey$ADM |> 
+CRF$ADM <- CRF$ADM |> 
   select(USUBJID, SITEID, YEAR_BIRTH, GENDER, ADMISSION_DATE, WARD_3, CORMOBIDITY,
          MI_HIS, CHF, PVD, CVD, DEMENTIA, CPD, CTD, PUD, MILD_LIVER, SEV_LIVER,
          HEMIPLEGIA, SEV_RENAL, starts_with("DIAB"), TUMOR_NOMETA, LEUKEMIA, LYMPHOMA,
@@ -255,10 +255,10 @@ survey$ADM <- survey$ADM |>
   select(-YEAR_BIRTH, -ANB_ADMISSION, -WARD_3)
 ```
 
-The `DEMO_HIS` tab:
+The `DEMO_HIS` tab (demographic and historical information):
 
 ```{r}
-survey$DEMO_HIS <- survey$DEMO_HIS |> 
+CRF$DEMO_HIS <- CRF$DEMO_HIS |> 
   select(USUBJID, MARITAL, starts_with("JOB"), ADULT, CHILDREN, AMBULATORY, SMOKING,
          starts_with("ALCOHOL"), starts_with("DRUG")) |> 
   mutate(job = JOB_SPECIFY |>
@@ -286,10 +286,10 @@ survey$DEMO_HIS <- survey$DEMO_HIS |>
          -starts_with("ALCOHOL", FALSE), -starts_with("DRUG", FALSE))
 ```
 
-The `DEMO_HIS_HISTORY_GRID` tab:
+The `DEMO_HIS_HISTORY_GRID` tab (history data per type of history):
 
 ```{r}
-survey$DEMO_HIS_HISTORY_GRID <- survey$DEMO_HIS_HISTORY_GRID |>
+CRF$DEMO_HIS_HISTORY_GRID <- CRF$DEMO_HIS_HISTORY_GRID |>
   select(USUBJID, HIS_CONDITION, HIS_YN) |> 
   mutate(across(HIS_YN, ~ .x > 1),
          across(HIS_CONDITION, ~ c("InvasiveHistory",
@@ -298,10 +298,10 @@ survey$DEMO_HIS_HISTORY_GRID <- survey$DEMO_HIS_HISTORY_GRID |>
   pivot_wider(names_from = HIS_CONDITION, values_from = HIS_YN)
 ```
 
-The `DIS` tab:
+The `DIS` tab (discharge data):
 
 ```{r}
-survey$DIS <- survey$DIS |>
+CRF$DIS <- CRF$DIS |>
   select(USUBJID, DISCHARGE, FINAL_DIAG_ICD10, ICU, CVC, PVC, UC, IID,
          ends_with(c("TO", "FROM"))) |> 
   mutate(ICDGroup = case_match(FINAL_DIAG_ICD10,
@@ -321,18 +321,18 @@ survey$DIS <- survey$DIS |>
   select(-FINAL_DIAG_ICD10, -ends_with(c("TO", "FROM")))
 ```
 
-The `ANT` tab:
+The `ANT` tab (antibiotic data):
 
 ```{r}
-survey$ANT <- survey$ANT |>
+CRF$ANT <- CRF$ANT |>
   select(USUBJID, ANB_HOS) |> 
   mutate(across(ANB_HOS, ~ .x > 2))
 ```
 
-The `ANT_ANB_HOSP_GRID` tab:
+The `ANT_ANB_HOSP_GRID` tab (antibiotic data per antibiotic):
 
 ```{r}
-survey$ANT_ANB_HOSP_GRID <- survey$ANT_ANB_HOSP_GRID |>
+CRF$ANT_ANB_HOSP_GRID <- CRF$ANT_ANB_HOSP_GRID |>
   select(USUBJID, ANB_HOSP_NAME, ANB_OTHER_SPEC, ANB_HOSP_START_DATE,
          ANB_HOSP_END_DATE) |> 
   mutate(agent = case_match(ANB_OTHER_SPEC,
@@ -353,7 +353,7 @@ survey$ANT_ANB_HOSP_GRID <- survey$ANT_ANB_HOSP_GRID |>
 Calculating DOT of antibiotics used in hospital for each patient:
 
 ```{r}
-survey$antibiotic_hospital_DOT <- survey$ANT_ANB_HOSP_GRID %>%
+CRF$antibiotic_hospital_DOT <- CRF$ANT_ANB_HOSP_GRID %>%
   mutate(number = 1) |> 
   group_by(USUBJID) %>%
   summarise(number = sum(number), total_DOT = sum(DOT)) |> 
@@ -363,7 +363,7 @@ survey$antibiotic_hospital_DOT <- survey$ANT_ANB_HOSP_GRID %>%
 Merging all the CRF data:
 
 ```{r}
-all_data <- survey |>
+all_data <- CRF |>
   reduce(merge2) |> 
   mutate(los = as.numeric((as.POSIXct(DISCHARGE_DATE) -
                              as.POSIXct(ADMISSION_DATE)) / spd + 1)) |>
