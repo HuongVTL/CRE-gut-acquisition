@@ -185,6 +185,12 @@ Tuning the `difftime()` function:
 duration <- function(from, to) difftime(to, from, units = "days") + 1
 ```
 
+Tuning the `starts_with()` function:
+
+```{r}
+starts_with2 <- function(...) starts_with(..., ignore.case = FALSE)
+```
+
 
 ## CRF data
 
@@ -303,8 +309,8 @@ CRF$DEMO_HIS <- CRF$DEMO_HIS |>
                             ALCOHOL_DRUG < 5, "0 problem", "1-4 problem"),
          drug = ifelse(DRUG_CUTDOWN + DRUG_ANNOYED + DRUG_GUILTY + 
                          DRUG_DRUG < 5, "0 problem", "1-4 problem")) |> 
-  select(-MARITAL, -starts_with("JOB"), -ADULT, -CHILDREN, -AMBULATORY, -SMOKING,
-         -starts_with("ALCOHOL", FALSE), -starts_with("DRUG", FALSE))
+  select(-MARITAL, -starts_with2("JOB"), -ADULT, -CHILDREN, -AMBULATORY, -SMOKING,
+         -starts_with2("ALCOHOL"), -starts_with2("DRUG"))
 ```
 
 The `DEMO_HIS_HISTORY_GRID` tab (history data per type of history):
@@ -400,7 +406,7 @@ all_data <- CRF |>
 Reading the data sets:
 
 ```{r load data}
-cre <- malditof_file |>
+MALDI_TOF <- malditof_file |>
   read_excel2() |> 
   filter(Identification_MALDITOF %ni% non_CRE) |> 
   select(USUBJID, SPEC_DATE, SampleSchedule, Identification_MALDITOF) |> 
@@ -408,54 +414,82 @@ cre <- malditof_file |>
 ```
 
 ```{r cre carriage and species}
-CRE_admission <- subset(cre, cre$SampleSchedule == "ADMISSION"); 
-CRE_discharge <- subset(cre, cre$SampleSchedule == "DISCHARGE")
-
-length(unique(CRE_admission$USUBJID))
-length(unique(CRE_discharge$USUBJID))
-
-## subset to specific CREC or CRKP
-CREC_admission <- CRE_admission %>%
-  filter(Identification_MALDITOF == "Escherichia coli")
-
-CREC_discharge <- CRE_discharge %>%
-  filter(Identification_MALDITOF == "Escherichia coli")
-
-CRKP_admission <- CRE_admission %>%
-  filter(Identification_MALDITOF == "Klebsiella pneumoniae")
-
-CRKP_discharge <- CRE_discharge %>%
-  filter(Identification_MALDITOF == "Klebsiella pneumoniae")
+#CRE_admission <- subset(cre, cre$SampleSchedule == "ADMISSION"); 
+#CRE_discharge <- subset(cre, cre$SampleSchedule == "DISCHARGE")
+#
+#length(unique(CRE_admission$USUBJID))
+#length(unique(CRE_discharge$USUBJID))
+#
+### subset to specific CREC or CRKP
+#CREC_admission <- CRE_admission %>%
+#  filter(Identification_MALDITOF == "Escherichia coli")
+#
+#CREC_discharge <- CRE_discharge %>%
+#  filter(Identification_MALDITOF == "Escherichia coli")
+#
+#CRKP_admission <- CRE_admission %>%
+#  filter(Identification_MALDITOF == "Klebsiella pneumoniae")
+#
+#CRKP_discharge <- CRE_discharge %>%
+#  filter(Identification_MALDITOF == "Klebsiella pneumoniae")
 ```
 
 ```{r}
-merge2(all_data, CREC_admission)
+#merge2(all_data, CREC_admission)
 ```
 
 
+## Risk data
 
+Preparing the risk data:
 
-## Prepare risk datasets for Lasso modeling
+```{r}
+risk_data <- all_data |> 
+  mutate(across(smoking, ~ .x != "all non-smokers"),
+         across(children, ~ replace_na(.x, "no children in the household")),
+         across(job, ~ ifelse(.x == "all other jobs", "all_others", .x)),
+         across(ICDGroup, ~ ifelse(.x %in% c("Circulatory diseases",
+                                             "Genitourinary diseases",
+                                             "ID (Intestinal)"), "all_others", .x)),
+         heart_disease = MI_HIS | CHF,
+         vascular_disease = CVD | PVD,
+         cancer = TUMOR_NOMETA | LEUKEMIA | LYMPHOMA | META_TUMOR)
+```
 
-```{r risk datasets}
-riskdata <- merge2(all_data, CREC_admission) %>%
-  mutate(CRE_carriage = ! is.na(SPEC_DATE),
-         smoking2 = as.factor(ifelse(smoking == "all non-smokers",
-                                     "all non-smokers", "smokers")),
-         children2 = as.factor(ifelse(is.na(children), 1, children)), 
-# NA to be classified as 1 = having no children living in the house; 2 = having children living in the house
-         job_farmer = as.factor(ifelse(job == "farmer", "farmers", "allothers")),# 1 = others, 3 = housewife, 4 = retired, 2 = farmers
-         job_housewife = as.factor(ifelse(job == "housewife", "housewives", "allothers")), # 1 = others, 3 = housewife, 4 = retired, 2 = farmers
-         job_retired = as.factor(ifelse(job == "retired", "retired", "allothers")), # 1 = others, 3 = housewife, 4 = retired, 2 = farmers
-         heart_diseases = as.factor(ifelse(as.factor(MI_HIS + CHF) == 0, 0, 1)),
-         vascular_diseases = as.factor(ifelse(as.factor(CVD + PVD) == 0, 0, 1)),
-         cancer = as.factor(TUMOR_NOMETA + LEUKEMIA + LYMPHOMA + META_TUMOR),
-         values = TRUE) |> 
-  pivot_wider(names_from = ICDGroup, values_from = values, values_fill = FALSE)
+A function that makes a data set for a specific set of bacteria:
+
+```{r}
+make_data <- function(bacteria = "all") {
+  if (bacteria != "all")
+    MALDI_TOF <- filter(MALDI_TOF, Identification_MALDITOF %in% bacteria)
+  
+  MALDI_TOF |> 
+    filter(SampleSchedule == "ADMISSION") |> 
+    select(USUBJID) |>
+    unique() |> 
+    mutate(carrier = TRUE) %>% 
+    left_join(risk_data, ., "USUBJID") |> 
+    mutate(across(carrier, ~ replace_na(.x, FALSE)))
+}
 ```
 
 
 ## Prepare variables for Lasso modeling
+
+```{r}
+dataset <- make_data("Escherichia coli")
+```
+
+```{r}
+dataset
+```
+
+
+
+
+
+
+
 
 ```{r scaling and fixing data for Lasso}
 # standardize predictor variables before Lasso regression because the penalty is
