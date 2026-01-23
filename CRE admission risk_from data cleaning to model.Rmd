@@ -29,10 +29,24 @@ CRF file:
 CRF_file <- "16-12-2025-_60HN_PATIENT_P1_Data.xls"
 ```
 
+MALDI-TOF file:
+
+```{r}
+malditof_file <- "60HN_ID_MALDITOF_confirmation_20251128.xlsx"
+```
+
 The dates of discharge of the patients who did no provide any sample at discharge:
 
 ```{r}
 no_sample_discharge_dates <- "60HN - DischargeDate_no_discharge_sample_27Nov25.xlsx"
+```
+
+Bacteria to exclude from the analysis:
+
+```{r}
+non_CRE <- c("Acinetobacter baumannii", "Aeromonas caviae", "Aeromonas hydrophila",
+             "Aeromonas veronii", "Enterococcus faecium", "Cupriavidus gilardii",
+             "Pseudomonas putida")
 ```
 
 The diseases categories:
@@ -48,12 +62,12 @@ neoplasms <- c("C18", "C18.9; K56.6", "C20", "C22", "C22.9", "C34.9", "C41", "C6
                "C67.9", "C70.0", "C91.9", "C92.2", "C95.0", "D12.0", "D17", "D21",
                "D21.9", "D23", "D23.9", "D27", "D37.4", "D38.1", "D40.0", "D44.0",
                "D48.1")
-circulatory_diseases <- c("I10", "I10-E11-E25-I69", "I10; H81", "I11.9", "I12.5", "I18",
-                          "I20", "I20.0", "I20.8", "I21", "I21.4", "I21.9", "I24.0",
-                          "I25", "I25.2", "I25.5", "I48", "I48.0", "I48.2", "I50",
-                          "I50.9", "I61", "I63", "I63.8", "I64", "I67", "I67-I10",
-                          "I67 - I10", "I69.4", "I70.2", "I80", "I87.2", "I88.8",
-                          "I92.9", "I95", "I99")
+circulatory_diseases <- c("I10", "I10-E11-E25-I69", "I10; H81", "I11.9", "I12.5",
+                          "I18", "I20", "I20.0", "I20.8", "I21", "I21.4", "I21.9",
+                          "I24.0", "I25", "I25.2", "I25.5", "I48", "I48.0", "I48.2",
+                          "I50", "I50.9", "I61", "I63", "I63.8", "I64", "I67",
+                          "I67-I10", "I67 - I10", "I69.4", "I70.2", "I80", "I87.2",
+                          "I88.8", "I92.9", "I95", "I99")
 respiratory_diseases <- c("J01", "J01.9", "J02", "J02.9", "J04.0", "J06", "J06.9",
                           "J09", "J10.1", "J10.8", "J11", "J11.1", "J11.8", "J15",
                           "J15.9", "J16", "J17.1", "J18", "J18-I20.2", "J18.0",
@@ -121,8 +135,8 @@ if (grepl("arc|hoisy", Sys.getenv("USER"))) {
 Required packages:
 
 ```{r}
-required <- c("dplyr", "purrr", "tidyr", "stringr", "magrittr", "readxl", "gmodels",
-              "lsmeans", "lme4", "glmmLasso", "rlang")
+required <- c("gmodels", "lsmeans", "lme4", "glmmLasso", "stringr", "magrittr",
+              "readxl", "rlang", "tidyr", "purrr", "dplyr")
 ```
 
 Installing those that are not installed yet:
@@ -181,7 +195,14 @@ CRF <- c("SCR", "ADM", "DEMO_HIS", "DEMO_HIS_HISTORY_GRID", "DIS", "ANT",
          "ANT_ANB_HOSP_GRID") |> 
   set_names() |> 
   map(read_excel2, file = CRF_file) |>
-  map(dplyr::filter, entry == 2)
+  map(filter, entry == 2)
+```
+
+**Note:** whereas all the non `*GRID* tab have only 1 observation per patient, all the
+*GRID* do have or can have more than one observation per patient:
+
+```{r}
+map(CRF, ~ sort(unique(table(.x$USUBJID))))
 ```
 
 Discharge dates of those who did not provide any sample at discharge:
@@ -347,17 +368,18 @@ CRF$ANT_ANB_HOSP_GRID <- CRF$ANT_ANB_HOSP_GRID |>
                             cefmetazol                ~ "Cefmetazol",
                             ticarcillin_acid_clavulan ~ "Ticarcillin/acid clavulanic",
                             .default = ANB_HOSP_NAME),
-         DOT = as.numeric((ANB_HOSP_END_DATE - ANB_HOSP_START_DATE) / spd + 1))
+         DOT = as.numeric((ANB_HOSP_END_DATE - ANB_HOSP_START_DATE) / spd + 1)) |> 
+  group_by(USUBJID, agent) |> 
+  summarise(DOT = sum(DOT), .groups = "drop") |> 
+  pivot_wider(names_from = agent, values_from = DOT) |> 
+  mutate(across(everything(), ~ replace_na(.x, 0)),
+         DOT = rowSums(across(where(is.numeric))))
 ```
 
-Calculating DOT of antibiotics used in hospital for each patient:
+Note that now we have only one row per patient for all the slots:
 
 ```{r}
-CRF$antibiotic_hospital_DOT <- CRF$ANT_ANB_HOSP_GRID %>%
-  mutate(number = 1) |> 
-  group_by(USUBJID) %>%
-  summarise(number = sum(number), total_DOT = sum(DOT)) |> 
-  select(-number)
+map(CRF, ~ sort(unique(table(.x$USUBJID))))
 ```
 
 Merging all the CRF data:
@@ -367,69 +389,22 @@ all_data <- CRF |>
   reduce(merge2) |> 
   mutate(los = as.numeric((as.POSIXct(DISCHARGE_DATE) -
                              as.POSIXct(ADMISSION_DATE)) / spd + 1)) |>
-  select(-DISCHARGE_DATE, -ADMISSION_DATE)
+  select(-DISCHARGE_DATE, -ADMISSION_DATE) |> 
+  mutate(across(c(where(is.numeric), -c(hospitaltype, age, Ab_history, householdsize)),
+                ~ replace_na(.x, 0)))
 ```
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Datasets and variables
-
-## Source data
-
-The list of non-CRE bacteria to exclude from the data:
-
-```{r}
-non_CRE <- c("Acinetobacter baumannii", "Aeromonas caviae", "Aeromonas hydrophila",
-             "Aeromonas veronii", "Enterococcus faecium", "Cupriavidus gilardii",
-             "Pseudomonas putida")
-```
+## MALDI-TOF data
 
 Reading the data sets:
 
 ```{r load data}
-survey <- readxl_allsheet("16-12-2025-_60HN_PATIENT_P1_Data.xls")
-cre <- read_excel2("60HN_ID_MALDITOF_confirmation_20251128.xlsx") |> 
+cre <- malditof_file |>
+  read_excel2() |> 
   filter(Identification_MALDITOF %ni% non_CRE) |> 
-  mutate(hospitaltype = ifelse(SiteID %in% c("010","159"), 1, 2))
-```
-
-
-
-## CRE datasets
-
-```{r}
-remove_duplicates <- function(x) {
-  x |>
-    select(USUBJID, SPEC_DATE) |> 
-    unique()
-}
+  select(USUBJID, SPEC_DATE, SampleSchedule, Identification_MALDITOF) |> 
+  unique()
 ```
 
 ```{r cre carriage and species}
@@ -441,307 +416,26 @@ length(unique(CRE_discharge$USUBJID))
 
 ## subset to specific CREC or CRKP
 CREC_admission <- CRE_admission %>%
-  filter(Identification_MALDITOF == "Escherichia coli") %>%
-  remove_duplicates()
+  filter(Identification_MALDITOF == "Escherichia coli")
 
 CREC_discharge <- CRE_discharge %>%
-  filter(Identification_MALDITOF == "Escherichia coli") %>%
-  remove_duplicates()
+  filter(Identification_MALDITOF == "Escherichia coli")
 
 CRKP_admission <- CRE_admission %>%
-  filter(Identification_MALDITOF == "Klebsiella pneumoniae") %>%
-  remove_duplicates()
+  filter(Identification_MALDITOF == "Klebsiella pneumoniae")
 
 CRKP_discharge <- CRE_discharge %>%
-  filter(Identification_MALDITOF == "Klebsiella pneumoniae") %>%
-  remove_duplicates()
-```
-
-## Survey data set
-
-
-
-
-
-```{r}
-all_data <- list(
-#    admission,
-#    select(survey$DEMO_HIS, USUBJID, smoking, children, married, ambulatory, job,
-#           alcohol, drug),
-#    select(InvasiveHistory, USUBJID, InvasiveHistory),
-#    select(MedicationHistory, USUBJID, MedicationHistory),
-#    select(TravelHistory, USUBJID, TravelHistory),
-#    select(HealthcareHistory, USUBJID, HealthcareHistory),
-##    select(discharge, USUBJID, ICDGroup, ICUduration, CVCduration, PVCduration,
-##           UCduration, IIDduration, DISCHARGE, ICU, CVC, PVC, UC, IID),
-#    select(antibiotic_hospital, USUBJID, antibiotic_hospital),
-#    antibiotic_hospital_DOT) |> 
-  reduce(merge2)
+  filter(Identification_MALDITOF == "Klebsiella pneumoniae")
 ```
 
 ```{r}
-names(survey$DIS)
+merge2(all_data, CREC_admission)
 ```
 
 
 
 
-
-
-## Admission dataset
-
-```{r Admission variables}
-survey$ADM <- survey$ADM %>%
-  mutate(hospitaltype = ifelse(SITEID %in% c("010","159"), 1, 2),
-         age = 2025 - YEAR_BIRTH + 1,
-         Ab_history = ifelse(ANB_ADMISSION %in% c(1, 4), 0, 1),
-         wardtype = as.factor(ifelse(WARD_3 == 1, "surgical", "medical/ID")))
-
-admission <- discharge_date |>
-  merge2(survey$SCR) |>
-  mutate(DISCHARGE_DATE = ifelse(is.na(SPEC_DATE_DISCHARGE),
-                                 `Discharge date`, SPEC_DATE_DISCHARGE)) %>%
-  select(USUBJID, DISCHARGE_DATE) |> 
-  merge2(survey$ADM) %>%
-  mutate(los = as.numeric((as.POSIXct(DISCHARGE_DATE) -
-                             as.POSIXct(ADMISSION_DATE)) / 86400 + 1))
-```
-
-
-## General info dataset
-
-```{r}
-unique(survey$DEMO_HIS$JOB_final)
-```
-
-
-```{r General information}
-survey$DEMO_HIS <- survey$DEMO_HIS %>%
-  mutate(JOB_final = case_match(JOB_SPECIFY,
-                                c("Cán bộ công chức", "Cán bộ xã") ~ 1,
-                                c("Bảo vệ", "Cơ khí","Hộ lý", "Lái tàu thủy",
-                                  "Lao động tự do", "Vệ sỹ") ~ 4,
-                                c("già", "Già", "Hết độ tuổi lao động") ~ 8,
-                                c("Ở nhà", "Tự do") ~ 9, .default = as.numeric(JOB)),
-         householdsize = ADULT + CHILDREN,
-         ALCOHOL_CUTDOWN_score = ALCOHOL_CUTDOWN != 1,
-         ALCOHOL_ANNOYED_score = ALCOHOL_ANNOYED != 1,
-         ALCOHOL_GUILTY_score = ALCOHOL_GUILTY != 1,
-         ALCOHOL_DRUG_score = ALCOHOL_DRUG != 1,
-         DRUG_CUTDOWN_score = DRUG_CUTDOWN != 1,
-         DRUG_ANNOYED_score = DRUG_ANNOYED != 1,
-         DRUG_GUILTY_score = DRUG_GUILTY != 1,
-         DRUG_DRUG_score = DRUG_DRUG != 1,
-         smoking = as.factor(case_match(SMOKING,
-                                        "1" ~ "current smoker",
-                                        "2" ~ "former smoker",
-                                        .default = "all non-smokers")),
-         children = as.factor(ifelse(CHILDREN == 0,
-                                     "no children in the household",
-                                     "with children in the household")),
-         married = as.factor(ifelse(MARITAL == 1, "married", "other")),
-         ambulatory = as.factor(ifelse(AMBULATORY == 1,
-                                       "independent", "not independent")),
-         AlcoholCAGE = ALCOHOL_CUTDOWN_score + ALCOHOL_ANNOYED_score +
-           ALCOHOL_GUILTY_score + ALCOHOL_DRUG_score, 
-         DrugCAGE = DRUG_CUTDOWN_score + DRUG_ANNOYED_score + DRUG_GUILTY_score +
-           DRUG_DRUG_score,
-         job = case_match(JOB_final, 6 ~ "farmer", 7 ~ "housewife", 8 ~ "retired",
-                          .default = "all other jobs"),
-         alcohol = as.factor(ifelse(AlcoholCAGE == 0, "0 problem", "1-4 problem")),
-         drug = as.factor(ifelse(DrugCAGE == 0, "0 problem", "1-4 problem")))
-```
-
-
-## Other history dataset
-
-```{r other history}
-## MARC: this is not a good idea
-
-InvasiveHistory <- survey$DEMO_HIS_HISTORY_GRID %>%
-  filter(HIS_CONDITION == 1) %>%
-  mutate(InvasiveHistory = as.factor(ifelse(HIS_YN == 2, "Yes", "No")))
-         
-MedicationHistory <- survey$DEMO_HIS_HISTORY_GRID %>%
-  filter(HIS_CONDITION == 2) %>%
-  mutate(MedicationHistory = as.factor(ifelse(HIS_YN == 2, "Yes", "No")))
-
-TravelHistory <- survey$DEMO_HIS_HISTORY_GRID %>%
-  filter(HIS_CONDITION == 3) %>%
-  mutate(TravelHistory = as.factor(ifelse(HIS_YN == 2, "Yes", "No")))
-
-HealthcareHistory <- survey$DEMO_HIS_HISTORY_GRID %>%
-  filter(HIS_CONDITION == 4) %>%
-  mutate(HealthcareHistory = as.factor(ifelse(HIS_YN == 2, "Yes", "No")))
-```
-
-
-## Discharge dataset
-
-The categories:
-
-```{r}
-id_intestinal <- c("A04", "A04.8", "A04.9", "A05.9", "A06.4", "A08.0", "A08.5", "A09",
-                   "A09.0", "A09.9")
-id_other <- c("A15.0", "A15.3", "A16.2", "A41", "A41.5", "A41.8", "A41.9", "A48",
-              "A49.9", "A79.8", "A79.9", "A93", "A94", "A97", "B00.1", "B01", "B01.2",
-              "B01.8", "B02", "B02.7", "B02.8", "B05", "B05.2", "B05.8", "B05.9",
-              "B17", "B18.1", "B18.2", "B34.9", "B83.8")
-neoplasms <- c("C18", "C18.9; K56.6", "C20", "C22", "C22.9", "C34.9", "C41", "C61",
-               "C67.9", "C70.0", "C91.9", "C92.2", "C95.0", "D12.0", "D17", "D21",
-               "D21.9", "D23", "D23.9", "D27", "D37.4", "D38.1", "D40.0", "D44.0",
-               "D48.1")
-circulatory_diseases <- c("I10", "I10-E11-E25-I69", "I10; H81", "I11.9", "I12.5", "I18",
-                          "I20", "I20.0", "I20.8", "I21", "I21.4", "I21.9", "I24.0",
-                          "I25", "I25.2", "I25.5", "I48", "I48.0", "I48.2", "I50",
-                          "I50.9", "I61", "I63", "I63.8", "I64", "I67", "I67-I10",
-                          "I67 - I10", "I69.4", "I70.2", "I80", "I87.2", "I88.8",
-                          "I92.9", "I95", "I99")
-respiratory_diseases <- c("J01", "J01.9", "J02", "J02.9", "J04.0", "J06", "J06.9",
-                          "J09", "J10.1", "J10.8", "J11", "J11.1", "J11.8", "J15",
-                          "J15.9", "J16", "J17.1", "J18", "J18-I20.2", "J18.0",
-                          "J18.1", "J18.8", "J18.9", "J20", "J20.9", "J40", "J42",
-                          "J44", "J44.0", "J44.1", "J44.9", "J45", "J90", "J96.0",
-                          "J96.9", "J96/18")
-digestive_diseases <- c("K11.2", "K12.3", "K21", "K21.0", "K21.9", "K22.6", "K25",
-                        "K25.0", "K25.3", "K25.9", "K26.0", "K27", "K27-J20", "K27.0",
-                        "K27.3", "K27.9", "K29", "K29.0", "K29.1", "K29.2", "K29.6",
-                        "K29.9", "K30", "K35", "K35.1", "K35.3", "K35.5", "K35.8",
-                        "K35.9", "K36", "K40", "K40.9", "K42", "K50", "K52.3", "K52.9",
-                        "K56", "K56.4", "K56.6", "K57.0", "K57.3", "K57.9", "K58",
-                        "K58.0", "K59.1", "K60.3", "K61.0", "K61.2", "K62.1", "K62.5",
-                        "K63", "K63.1", "K63.5", "K64", "K64.2", "K64.3", "K64.8",
-                        "K65", "K71.2", "K71.6", "K72.0", "K72.2", "K73", "K74",
-                        "K74.0", "K74.1", "K74.2", "K74.6", "K75.8", "K77", "K78.6",
-                        "K80", "K80.0", "K80.1", "K80.2", "K80.3", "K80.4", "K80.8",
-                        "K81", "K81.0", "K83", "K83.0", "K85", "K85.0", "K85.8",
-                        "K85.9", "K86.1", "K92", "K92.2", "K92.8", "K92.9")
-genitourinary_diseases <- c("N00", "N13.2", "N13.3", "N13.6", "N17", "N17.9", "N18",
-                            "N18.4", "N18.5", "N18.9", "N19", "N20", "N20.0", "N20.1",
-                            "N20.1, N23, N20.0, K21, M47", "N20.2", "N21.0", "N21.1",
-                            "N23", "N28", "N30.0", "N30.8", "N32.0", "N34.1", "N39.0",
-                            "N40", "N43.2", "N45", "N47", "N48.1", "N70")
-```
-
-Tests:
-
-```{r}
-unique_codes <- unique(survey$DIS$FINAL_DIAG_ICD10)
-all_codes <- c(id_intestinal, id_other, neoplasms, circulatory_diseases,
-               respiratory_diseases, digestive_diseases, genitourinary_diseases)
-
-all_codes |> 
-  table() |> 
-  unique()
-
-all(all_codes %in% unique_codes)
-setdiff(all_codes, unique_codes)
-```
-
-
-```{r discharge dataset}
-discharge <- survey$DIS %>%
-  mutate(ICDGroup = as.factor(case_when(
-           FINAL_DIAG_ICD10 %in% id_intestinal ~ "ID (Intestinal)",
-           FINAL_DIAG_ICD10 %in% id_other ~ "ID (Other)",
-           FINAL_DIAG_ICD10 %in% neoplasms ~ "Neoplasms",
-           FINAL_DIAG_ICD10 %in% circulatory_diseases ~ "Circulatory diseases",
-           FINAL_DIAG_ICD10 %in% respiratory_diseases ~ "Respiratory diseases",
-           FINAL_DIAG_ICD10 %in% digestive_diseases ~ "Digestive diseases",
-           FINAL_DIAG_ICD10 %in% genitourinary_diseases ~ "Genitourinary diseases",
-           .default = "Other")),
-         ICUduration = difftime(ICU_TO, ICU_FROM, units = "days") + 1,
-         CVCduration = difftime(CVC_TO, CVC_FROM, units = "days") + 1,
-         PVCduration = difftime(PVC_TO, PVC_FROM, units = "days") + 1,
-         UCduration = difftime(UC_TO, UC_FROM, units = "days") + 1,
-         IIDduration = difftime(IID_TO, IID_FROM, units = "days") + 1)
-```
-
-## Antibiotic use during hospitalization
-
-```{r}
-cefoperazone <- c("Cefoperazol","Cefoperazole", "Cefoperazon", "Cefoperazone")
-ampicill_sulb <- "Senitram"
-cefamandol <- c("Cefamandol", "Cefemandol")
-cefo_sulb <- "Vitabactam"
-cefazolin <- "Cefazolin"
-cefprozil <- "Cefprozil"
-cefradin <- "Cefradin"
-ceftizoxime <- c("Ceftizoxim", "Ceftizoxime", "Ceftizoxom", "Ceftrizoxim")
-cefmetazol <- "Cefmetazol"
-ticarcillin_acid_clavulanic <- c("Ticarcillin + Acid clavulanic",
-                                 "Ticarcillin + Clavulanic",
-                                 "Ticarcillin/acid clavulanic")
-```
-
-Tests:
-
-```{r}
-unique_ab <- unique(survey$ANT_ANB_HOSP_GRID$ANB_OTHER_SPEC)
-all_ab <- c(cefoperazone, ampicill_sulb, cefamandol, cefo_sulb,
-            cefazolin, cefprozil, cefradin, ceftizoxime, cefmetazol,
-            ticarcillin_acid_clavulanic)
-
-all_ab |> 
-  table() |> 
-  unique()
-
-all(all_ab %in% unique_ab)
-setdiff(all_ab, unique_ab)
-```
-
-```{r ANTIBIOTIC USE DURING HOSPITALIZATION}
-# Antibiotic use during hospitalization at patient level
-antibiotic_hospital <- survey$ANT %>%
-  mutate(antibiotic_hospital = ifelse(ANB_HOS == 3, "yes", "no"))
-
-#antibiotic agents used in hospital, each patient can have more than 1 antibiotic agent
-antibiotic_hospital_agents <- survey$ANT_ANB_HOSP_GRID %>%
-  mutate(agent = case_when(ANB_OTHER_SPEC %in% cefoperazone ~ "Cefoperazone",
-                           ANB_OTHER_SPEC %in% ampicill_sulb ~ "Ampicillin_sulbactam",
-                           ANB_OTHER_SPEC %in% cefamandol ~ "Cefamandol",
-                           ANB_OTHER_SPEC %in% cefo_sulb ~ "Cefoperazone_sulbactam",
-                           ANB_OTHER_SPEC %in% cefazolin ~ "Cefazolin",
-                           ANB_OTHER_SPEC %in% cefprozil ~ "Cefprozil",
-                           ANB_OTHER_SPEC %in% cefradin ~ "Cefradin",
-                           ANB_OTHER_SPEC %in% ceftizoxime ~ "Ceftizoxime",
-                           ANB_OTHER_SPEC %in% cefmetazol ~ "Cefmetazol",
-                           ANB_OTHER_SPEC %in% ticarcillin_acid_clavulanic ~
-                             "Ticarcillin/acid clavulanic",
-                           .default = ANB_HOSP_NAME),
-         number = 1,
-         DOT = as.numeric((ANB_HOSP_END_DATE - ANB_HOSP_START_DATE) / 86400 + 1))
-
-# calculate DOT of antibiotics used in hospital for each patient, at patient level
-antibiotic_hospital_DOT <- antibiotic_hospital_agents %>%
-  group_by(USUBJID) %>%
-  summarise(number = sum(number), DOT = sum(DOT))
-```
-
-
-## merge all data in the CRF
-
-``` {r merge CRF datasets}
-#select the variables that are relevant for further modeling
-all_data <- list(
-    admission,
-    select(survey$DEMO_HIS, USUBJID, smoking, children, married, ambulatory, job,
-           alcohol, drug),
-    select(InvasiveHistory, USUBJID, InvasiveHistory),
-    select(MedicationHistory, USUBJID, MedicationHistory),
-    select(TravelHistory, USUBJID, TravelHistory),
-    select(HealthcareHistory, USUBJID, HealthcareHistory),
-    select(discharge, USUBJID, ICDGroup, ICUduration, CVCduration, PVCduration,
-           UCduration, IIDduration, DISCHARGE, ICU, CVC, PVC, UC, IID),
-    select(antibiotic_hospital, USUBJID, antibiotic_hospital),
-    antibiotic_hospital_DOT) |> 
-  reduce(merge2)
-
-# to add CRE data depending on type of carriage examined for further analysis
-```
-
-
-# Prepare risk datasets for Lasso modeling
+## Prepare risk datasets for Lasso modeling
 
 ```{r risk datasets}
 riskdata <- merge2(all_data, CREC_admission) %>%
@@ -761,8 +455,7 @@ riskdata <- merge2(all_data, CREC_admission) %>%
 ```
 
 
-
-# Prepare variables for Lasso modeling
+## Prepare variables for Lasso modeling
 
 ```{r scaling and fixing data for Lasso}
 # standardize predictor variables before Lasso regression because the penalty is
@@ -807,7 +500,8 @@ data_clean <- na.exclude(riskdata_scaled)
 nrow(riskdata_scaled) - nrow(data_clean) # Check how many rows you lost
 ```
 
-# Fit a simple glmm model
+
+## Fit a simple glmm model
 
 ```{r fit a simple model glmm}
 mixed_formula <- CRE_carriage ~ age_s + GENDER + smoking2 + children2 + married +
@@ -829,7 +523,8 @@ Delta.start <- c(as.numeric(initial_fixed_estimates), rep(0, 100),
 Q.start <- as.numeric(VarCorr(simple_mixed_model))
 ```
 
-# Find the best lambda for glmmLasso
+
+## Find the best lambda for glmmLasso
 
 ```{r find best lambda for glmmLasso}
 # Define a sequence of lambda values (from high penalty to low)
@@ -865,7 +560,8 @@ baic_vec
 lambda_seq[which(is.infinite(baic_vec))]
 ```
 
-# Fit the final Lasso model
+
+## Fit the final Lasso model
 
 ```{r fit model}
 CRE_admission_model <- glmmLasso(
@@ -881,7 +577,8 @@ CRE_admission_model <- glmmLasso(
 (model_summary <- summary(CRE_admission_model))
 ```
 
-# Final estimates
+
+## Final estimates
 
 ``` {r extract ORs and 95%CI}
 std_errors <- model_summary$coefficients[, "StdErr"]; 
