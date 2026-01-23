@@ -92,9 +92,9 @@ cefprozil <- "Cefprozil"
 cefradin <- "Cefradin"
 ceftizoxime <- c("Ceftizoxim", "Ceftizoxime", "Ceftizoxom", "Ceftrizoxim")
 cefmetazol <- "Cefmetazol"
-ticarcillin_acid_clavulanic <- c("Ticarcillin + Acid clavulanic",
-                                 "Ticarcillin + Clavulanic",
-                                 "Ticarcillin/acid clavulanic")
+ticarcillin_acid_clavulan <- c("Ticarcillin + Acid clavulanic",
+                               "Ticarcillin + Clavulanic",
+                               "Ticarcillin/acid clavulanic")
 ```
 
 Number of seconds in 1 day:
@@ -216,7 +216,7 @@ On antibiotics categories:
 unique_ab <- unique(survey$ANT_ANB_HOSP_GRID$ANB_OTHER_SPEC)
 all_ab <- c(cefoperazone, ampicill_sulb, cefamandol, cefo_sulb,
             cefazolin, cefprozil, cefradin, ceftizoxime, cefmetazol,
-            ticarcillin_acid_clavulanic)
+            ticarcillin_acid_clavulan)
 
 all_ab |> 
   table() |> 
@@ -304,15 +304,15 @@ The `DIS` tab:
 survey$DIS <- survey$DIS |>
   select(USUBJID, DISCHARGE, FINAL_DIAG_ICD10, ICU, CVC, PVC, UC, IID,
          ends_with(c("TO", "FROM"))) |> 
-  mutate(ICDGroup = case_when(
-           FINAL_DIAG_ICD10 %in% id_intestinal          ~ "ID (Intestinal)",
-           FINAL_DIAG_ICD10 %in% id_other               ~ "ID (Other)",
-           FINAL_DIAG_ICD10 %in% neoplasms              ~ "Neoplasms",
-           FINAL_DIAG_ICD10 %in% circulatory_diseases   ~ "Circulatory diseases",
-           FINAL_DIAG_ICD10 %in% respiratory_diseases   ~ "Respiratory diseases",
-           FINAL_DIAG_ICD10 %in% digestive_diseases     ~ "Digestive diseases",
-           FINAL_DIAG_ICD10 %in% genitourinary_diseases ~ "Genitourinary diseases",
-           .default = "Other"),
+  mutate(ICDGroup = case_match(FINAL_DIAG_ICD10,
+                               id_intestinal          ~ "ID (Intestinal)",
+                               id_other               ~ "ID (Other)",
+                               neoplasms              ~ "Neoplasms",
+                               circulatory_diseases   ~ "Circulatory diseases",
+                               respiratory_diseases   ~ "Respiratory diseases",
+                               digestive_diseases     ~ "Digestive diseases",
+                               genitourinary_diseases ~ "Genitourinary diseases",
+                               .default = "Other"),
          ICUduration = duration(ICU_FROM, ICU_TO),
          CVCduration = duration(CVC_FROM, CVC_TO),
          PVCduration = duration(PVC_FROM, PVC_TO),
@@ -335,18 +335,18 @@ The `ANT_ANB_HOSP_GRID` tab:
 survey$ANT_ANB_HOSP_GRID <- survey$ANT_ANB_HOSP_GRID |>
   select(USUBJID, ANB_HOSP_NAME, ANB_OTHER_SPEC, ANB_HOSP_START_DATE,
          ANB_HOSP_END_DATE) |> 
-  mutate(agent = case_when(ANB_OTHER_SPEC %in% cefoperazone  ~ "Cefoperazone",
-                           ANB_OTHER_SPEC %in% ampicill_sulb ~ "Ampicillin_sulbactam",
-                           ANB_OTHER_SPEC %in% cefamandol    ~ "Cefamandol",
-                           ANB_OTHER_SPEC %in% cefo_sulb     ~ "Cefoperazon_sulbactam",
-                           ANB_OTHER_SPEC %in% cefazolin     ~ "Cefazolin",
-                           ANB_OTHER_SPEC %in% cefprozil     ~ "Cefprozil",
-                           ANB_OTHER_SPEC %in% cefradin      ~ "Cefradin",
-                           ANB_OTHER_SPEC %in% ceftizoxime   ~ "Ceftizoxime",
-                           ANB_OTHER_SPEC %in% cefmetazol    ~ "Cefmetazol",
-                           ANB_OTHER_SPEC %in% ticarcillin_acid_clavulanic ~
-                             "Ticarcillin/acid clavulanic",
-                           .default = ANB_HOSP_NAME),
+  mutate(agent = case_match(ANB_OTHER_SPEC,
+                            cefoperazone              ~ "Cefoperazone",
+                            ampicill_sulb             ~ "Ampicillin_sulbactam",
+                            cefamandol                ~ "Cefamandol",
+                            cefo_sulb                 ~ "Cefoperazon_sulbactam",
+                            cefazolin                 ~ "Cefazolin",
+                            cefprozil                 ~ "Cefprozil",
+                            cefradin                  ~ "Cefradin",
+                            ceftizoxime               ~ "Ceftizoxime",
+                            cefmetazol                ~ "Cefmetazol",
+                            ticarcillin_acid_clavulan ~ "Ticarcillin/acid clavulanic",
+                            .default = ANB_HOSP_NAME),
          DOT = as.numeric((ANB_HOSP_END_DATE - ANB_HOSP_START_DATE) / spd + 1))
 ```
 
