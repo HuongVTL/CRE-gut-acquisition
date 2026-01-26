@@ -278,7 +278,9 @@ CRF$ADM <- CRF$ADM |>
   mutate(hospitaltype = ifelse(SITEID %in% c("010", "159"), "provincial", "district"),
          age = 2025 - YEAR_BIRTH + 1,
          Ab_history = ANB_ADMISSION %in% c(1, 4),                # 1: No; 4: Don't know
-         wardtype = ifelse(WARD_3, "surgical", "medical/ID")) |>
+         wardtype = ifelse(WARD_3, "surgical", "medical/ID"),
+         across(GENDER, ~ c("male", "female")[as.integer(.x)]),
+         across(CORMOBIDITY, ~ .x > 1)) |>
   select(-YEAR_BIRTH, -ANB_ADMISSION, -WARD_3)
 ```
 
@@ -296,7 +298,7 @@ CRF$DEMO_HIS <- CRF$DEMO_HIS |>
                       c("già", "Già", "Hết độ tuổi lao động") ~ 8,
                       c("Ở nhà", "Tự do") ~ 9, .default = as.numeric(JOB)) |> 
            case_match(6 ~ "farmer", 7 ~ "housewife", 8 ~ "retired",
-                      .default = "all other jobs"),
+                      .default = "all_others"),
          householdsize = ADULT + CHILDREN,
          smoking = case_match(SMOKING, "1" ~ "current smoker",
                                        "2" ~ "former smoker",
@@ -390,7 +392,7 @@ map(CRF, ~ sort(unique(table(.x$USUBJID))))
 Merging all the CRF data:
 
 ```{r}
-all_data <- CRF |>
+CRF2 <- CRF |>
   reduce(merge2) |> 
   mutate(los = as.numeric((as.POSIXct(DISCHARGE_DATE) -
                              as.POSIXct(ADMISSION_DATE)) / spd + 1)) |>
@@ -412,47 +414,19 @@ MALDI_TOF <- malditof_file |>
   unique()
 ```
 
-```{r cre carriage and species}
-#CRE_admission <- subset(cre, cre$SampleSchedule == "ADMISSION"); 
-#CRE_discharge <- subset(cre, cre$SampleSchedule == "DISCHARGE")
-#
-#length(unique(CRE_admission$USUBJID))
-#length(unique(CRE_discharge$USUBJID))
-#
-### subset to specific CREC or CRKP
-#CREC_admission <- CRE_admission %>%
-#  filter(Identification_MALDITOF == "Escherichia coli")
-#
-#CREC_discharge <- CRE_discharge %>%
-#  filter(Identification_MALDITOF == "Escherichia coli")
-#
-#CRKP_admission <- CRE_admission %>%
-#  filter(Identification_MALDITOF == "Klebsiella pneumoniae")
-#
-#CRKP_discharge <- CRE_discharge %>%
-#  filter(Identification_MALDITOF == "Klebsiella pneumoniae")
-```
-
-```{r}
-#merge2(all_data, CREC_admission)
-```
-
 
 ## Risk data
 
 Preparing the risk data:
 
 ```{r}
-risk_data <- all_data |> 
+risk_data <- CRF2 |> 
   mutate(across(smoking, ~ .x != "all non-smokers"),
-         across(children, ~ replace_na(.x, "no children in the household")),
-         across(job, ~ ifelse(.x == "all other jobs", "all_others", .x)),
-         across(ICDGroup, ~ ifelse(.x %in% c("Circulatory diseases",
-                                             "Genitourinary diseases",
-                                             "ID (Intestinal)"), "all_others", .x)),
+         across(children, ~ replace_na(.x, FALSE)),
          heart_disease = MI_HIS | CHF,
          vascular_disease = CVD | PVD,
-         cancer = TUMOR_NOMETA | LEUKEMIA | LYMPHOMA | META_TUMOR)
+         cancer = TUMOR_NOMETA | LEUKEMIA | LYMPHOMA | META_TUMOR) |> 
+  select(-c(MI_HIS, CHF, CVD, PVD, TUMOR_NOMETA, LEUKEMIA, LYMPHOMA, META_TUMOR))
 ```
 
 A function that makes a data set for a specific set of bacteria:
@@ -468,156 +442,71 @@ make_data <- function(bacteria = "all") {
     unique() |> 
     mutate(carrier = TRUE) %>% 
     left_join(risk_data, ., "USUBJID") |> 
-    mutate(across(carrier, ~ replace_na(.x, FALSE)))
+    mutate(across(carrier, ~ replace_na(.x, FALSE))) |> 
+    select(SITEID, carrier, age, GENDER, smoking, children, married, independent, job,
+           CORMOBIDITY, vascular_disease, cancer, CPD, CTD, PUD, MILD_LIVER, SEV_LIVER,
+           HEMIPLEGIA, SEV_RENAL, DIAB_NOEOD, DIAB_EOD, alcohol_problem, drug_problem,
+           hospitaltype, wardtype, InvasiveHistory, MedicationHistory,
+           HealthcareHistory, Ab_history)
 }
 ```
 
 
-## Prepare variables for Lasso modeling
+## Mixed-effect logistic regression
+
+Let's try with CREC:
 
 ```{r}
-dataset <- make_data("Escherichia coli")
+simple_mixed_model <- glmer(carrier ~ . - SITEID + (1 | SITEID),
+                            make_data("Escherichia coli"), binomial)
 ```
 
 ```{r}
-dataset
-```
-
-
-
-
-
-
-
-
-```{r scaling and fixing data for Lasso}
-# standardize predictor variables before Lasso regression because the penalty is
-# applied to the magnitude of coefficients; standardizing (to mean 0, std dev 1)
-# ensures all variables are treated equally, allowing for meaningful coefficient
-# comparison and selection based on true predictive power, not scale. Check Defaults:
-# Confirm glmmLassoControl settings; standardize = TRUE is the standard for 2026 to
-# ensure the L1 penalty is consistent. Factor Recognition: Ensure categorical variables
-# are recognized as factors so the algorithm can apply group-wise updates. 
-
-#for continuous variables - check if re-scaled back when interpreting
-
-riskdata_scaled <- riskdata %>% 
-  mutate(age_s = scale(age), 
-         across(c(GENDER, SITEID, CORMOBIDITY, DEMENTIA, CPD, CTD, PUD, MILD_LIVER,
-                  SEV_LIVER, HEMIPLEGIA, SEV_RENAL, DIAB_NOEOD, DIAB_EOD),
-                as.factor)) |> 
-  select(CRE_carriage, age_s, GENDER, smoking2, SITEID, children2, married, ambulatory,
-         job_farmer, job_housewife, job_retired, CORMOBIDITY, heart_diseases,
-         vascular_diseases, DEMENTIA, CPD, CTD, PUD, MILD_LIVER, SEV_LIVER, HEMIPLEGIA,
-         SEV_RENAL, DIAB_NOEOD, DIAB_EOD, cancer, alcohol, drug, wardtype, Ab_history,
-         InvasiveHistory, MedicationHistory, HealthcareHistory, hospitaltype,
-         `Circulatory diseases`, `Genitourinary diseases`, `ID (Intestinal)`,
-         `ID (Other)`, Neoplasms, `Respiratory diseases`, `Digestive diseases`)
-#         gender = as.factor(GENDER),
-#         hospital = as.factor(SITEID),
-#         cormobidity = as.factor(CORMOBIDITY),
-#         dementia = as.factor(DEMENTIA),
-#         cpd = as.factor(CPD),
-#         ctd = as.factor(CTD),
-#         pud = as.factor(PUD),
-#         mild_liver = as.factor(MILD_LIVER),
-#         sev_liver = as.factor(SEV_LIVER),
-#         hemiplegia = as.factor(HEMIPLEGIA),
-#         sev_renal = as.factor(SEV_RENAL),
-#         diabetes_noeod = as.factor(DIAB_NOEOD),
-#         diabetes_eod = as.factor(DIAB_EOD),
-
-#no patient has AIDS, also not include pvd as no cases have pvd
-
-data_clean <- na.exclude(riskdata_scaled)
-nrow(riskdata_scaled) - nrow(data_clean) # Check how many rows you lost
-```
-
-
-## Fit a simple glmm model
-
-```{r fit a simple model glmm}
-mixed_formula <- CRE_carriage ~ age_s + GENDER + smoking2 + children2 + married +
-  ambulatory + job_farmer + job_housewife + job_retired + CORMOBIDITY + 
-  vascular_diseases + CPD + CTD + PUD + MILD_LIVER + SEV_LIVER + HEMIPLEGIA +
-  SEV_RENAL + DIAB_NOEOD + DIAB_EOD + cancer + alcohol + drug + wardtype +
-  InvasiveHistory + MedicationHistory + HealthcareHistory + hospitaltype + Ab_history +
-  `Circulatory diseases` + `Genitourinary diseases` + `ID (Intestinal)` +
-  `ID (Other)` + Neoplasms + `Respiratory diseases` + `Digestive diseases` +
-  (1| SITEID)                           # not include heart_diseases and dementia yet -
-
-
-simple_mixed_model <- glmer(mixed_formula, data_clean, binomial(link = "logit"))
 summary(simple_mixed_model)
-initial_fixed_estimates <- fixef(simple_mixed_model)
-initial_random_estimates <- ranef(simple_mixed_model)
-Delta.start <- c(as.numeric(initial_fixed_estimates), rep(0, 100),
-                 as.numeric(initial_random_estimates))
-Q.start <- as.numeric(VarCorr(simple_mixed_model))
+```
+
+```{r}
+Delta <- c(fixef(simple_mixed_model), unlist(ranef(simple_mixed_model)$SITEID))
+Q <- as.numeric(VarCorr(simple_mixed_model))
 ```
 
 
-## Find the best lambda for glmmLasso
+## Lasso mixed-effect logistic regression
 
-```{r find best lambda for glmmLasso}
-# Define a sequence of lambda values (from high penalty to low)
-lambda_seq <- seq(10, 0, by = -.1)
+```{r}
+dataset <- "Escherichia coli" |> 
+  make_data() |> 
+  as_tibble() |> 
+  na.exclude() |> 
+  mutate(across(where(~ !is.numeric(.x)), as.factor))
+```
 
-#fixed formula
-fixed_formula <- update(mixed_formula, . ~ . - (1| SITEID))
+```{r}
+mod_formula <- reformulate(setdiff(names(dataset), c("carrier", "SITEID")), "carrier")
+```
 
-# Initialize a vector to store BIC or AIC values
-baic_vec <- rep(Inf, length(lambda_seq))
+```{r}
+glmer_mod <- glmer(update(mod_formula, . ~ . + (1 | SITEID)), dataset, binomial)
+Delta <- c(fixef(glmer_mod), unlist(ranef(glmer_mod)$SITEID))
+Q <- as.numeric(VarCorr(glmer_mod))
+```
 
-# Create a loop to test each lambda
-for(j in 1:length(lambda_seq)) {
-  print(paste("Testing Lambda:", lambda_seq[j]))
-  #Use try() to prevent the loop from breaking if one model fails to converge
-  glmm_temp <- try(glmmLasso(
-    fix = fixed_formula,
-    rnd = list(hospital = ~1),
-    data = data_clean,
-    lambda = lambda_seq[j],
-    family = binomial(),
-    switch.NR = TRUE,
-    final.re = FALSE,
-    control = list(start = Delta.start, q_start = Q.start)),
-    silent = TRUE)
-  #If the model fit successfully, save the BIC
-  if (!inherits(glmm_temp, "try-error")) baic_vec[j] <- glmm_temp$bic
+```{r}
+#for(j in 1:length(lambda_seq)) {
+for(j in 1:2) {  
+  glmm_temp <- glmmLasso(mod_formula, list(SITEID =  ~1), dataset, lambda_seq[j],
+                         binomial(), TRUE, control = list(start = Delta, q_start = Q))
 }
+```
 
-# Find the lambda that produced the lowest BIC
-(opt_lambda <- lambda_seq[which.min(baic_vec)])
-baic_vec
-lambda_seq[which(is.infinite(baic_vec))]
+```{r}
+out <- glmmPen(carrier ~ . - SITEID + (1 | SITEID), dataset, penalty = "lasso")
+```
+
+```{r}
+glmmLasso(mod_formula, SITEID ~ 1, dataset, 0, binomial(link = "logit"))
 ```
 
 
-## Fit the final Lasso model
 
-```{r fit model}
-CRE_admission_model <- glmmLasso(
-  fix = fixed_formula,
-  rnd = list(hospital = ~1),
-  data = data_clean,
-  lambda = opt_lambda, # larger -> stronger regularization and more coefficients shrunk to zero; smaller reduces penalty
-  family = binomial(link = logit),
-  switch.NR = FALSE, # switch to the faster Newton-Raphson method to speed up model fitting process
-  final.re = TRUE,
-  control = list(start = Delta.start, q_start = Q.start))
-
-(model_summary <- summary(CRE_admission_model))
-```
-
-
-## Final estimates
-
-``` {r extract ORs and 95%CI}
-std_errors <- model_summary$coefficients[, "StdErr"]; 
-tab <- cbind(Est = coef(CRE_admission_model),
-             LL = coef(CRE_admission_model) - 1.96 * std_errors,
-             UL = coef(CRE_admission_model) + 1.96 * std_errors); 
-round(cbind(exp(tab), p = coef(summary(CRE_admission_model))[, 4]), digits = 3) #p-value
-```
-                                 
+                  
