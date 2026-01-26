@@ -267,7 +267,7 @@ CRF$SCR <- CRF$SCR |>
   select(USUBJID, DISCHARGE_DATE)
 ```
 
-The `ADM` tab (admission data):
+The `ADM` tab (admission data, note the choice made on `Ab_history`):
 
 ```{r}
 CRF$ADM <- CRF$ADM |> 
@@ -277,12 +277,13 @@ CRF$ADM <- CRF$ADM |>
          META_TUMOR, ANB_ADMISSION) |> 
   mutate(hospitaltype = ifelse(SITEID %in% c("010", "159"), "provincial", "district"),
          age = 2025 - YEAR_BIRTH + 1,
-         Ab_history = ANB_ADMISSION %in% c(1, 4), # 1: No; 4: Don't know
+         Ab_history = ANB_ADMISSION %in% c(1, 4),                # 1: No; 4: Don't know
          wardtype = ifelse(WARD_3, "surgical", "medical/ID")) |>
   select(-YEAR_BIRTH, -ANB_ADMISSION, -WARD_3)
 ```
 
-The `DEMO_HIS` tab (demographic and historical information):
+The `DEMO_HIS` tab (demographic and historical information, note the choice made on
+`smoking`):
 
 ```{r}
 CRF$DEMO_HIS <- CRF$DEMO_HIS |> 
@@ -299,7 +300,7 @@ CRF$DEMO_HIS <- CRF$DEMO_HIS |>
          householdsize = ADULT + CHILDREN,
          smoking = case_match(SMOKING, "1" ~ "current smoker",
                                        "2" ~ "former smoker",
-                                       .default = "all non-smokers"),
+                                       .default = "all non-smokers"), # contains "status unknown" too
          children = CHILDREN > 0,
          married = MARITAL < 2,
          independent = AMBULATORY < 2,
