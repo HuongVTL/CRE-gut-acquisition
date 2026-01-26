@@ -278,7 +278,7 @@ CRF$ADM <- CRF$ADM |>
   mutate(hospitaltype = ifelse(SITEID %in% c("010", "159"), "provincial", "district"),
          age = 2025 - YEAR_BIRTH + 1,
          Ab_history = ANB_ADMISSION %in% c(1, 4), # 1: No; 4: Don't know
-         wardtype = ifelse(WARD_3 == 1, "surgical", "medical/ID")) |>                  ####################
+         wardtype = ifelse(WARD_3, "surgical", "medical/ID")) |>
   select(-YEAR_BIRTH, -ANB_ADMISSION, -WARD_3)
 ```
 
