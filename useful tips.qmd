@@ -1,0 +1,49 @@
+---
+title: "Useful tips from MC"
+format: html
+editor: visual
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r marc choisy tips}
+
+rm(list=ls())
+
+#(1) check how many people it concerns, (2) state this decision explicitly and (3) compare this option with another one such as removing the missing values altogether
+
+# do the conversion to factors at the very last minute, right before the modelling. Do not do the conversion when putting the data frame together.
+
+# never ever duplicate data, it's only a source of confusion. You really don't want to have multiple versions of things in the same place. And this is a very general principle. And this is also what Git allows you to avoid by providing the ability to define branches instead. This is much safer and cleaner.
+
+#never use nested ifelse(), always prefer case_when() because nested ifelse() is prone to errors and difficult to read (which also brings risk of errors). But an even better option in most of the case encountered in your code is the use of a named vector as a lookup table. Prefer case_match() over case_when() whenever possible. Clearer and faster.
+
+#a good SOP in computer programming is to stick to DRY (standing for Don't Repeat Yourself). For example, in your code, do whatever data transformation is common to CRE_admission and CRE_discharge before you split cre into  CRE_admission and CRE_discharge.
+
+# prefer double quotes over single quotes and use single quotes only when you can't use double quotes (and such situations remain rare). Double quotes offer way more functionalities, especially in RStudio.
+
+# you should forget about Rmarkdown files and prefer Quarto files that is essentially the new and modern version of Rmarkdown. Much more powerful. The transition is very easy since that's essentially the same (Quarto can read Rmarkdown but not the opposite). Said in other words, everything you can do in Rmarkdown you can do in Quarto but not the opposite.
+
+# do not put the library() calls inside the setup chunk (that has include = FALSE) because the reader needs to see these commands. In this setup chunk you put only the tuning of your Rmarkdown rendering (complementary to the Yaml header code that is between --- and ---)
+
+# never use require(), always prefer library(). require() is essentially for inside functions only and, even there, it's less and less used.
+
+# 
+```
+
+![](images/Screenshot%202026-01-20%20at%2010.17.22.png)
+
+You can add options to executable code like this
+
+```{r}
+#| echo: false
+2 * 2
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
