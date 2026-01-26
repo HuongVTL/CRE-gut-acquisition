@@ -94,7 +94,7 @@ genitourinary_diseases <- c("N00", "N13.2", "N13.3", "N13.6", "N17", "N17.9", "N
                             "N40", "N43.2", "N45", "N47", "N48.1", "N70")
 ```
 
-The antimicrobials categories:
+The anti-microbials categories:
 
 ```{r}
 cefoperazone <- c("Cefoperazol","Cefoperazole", "Cefoperazon", "Cefoperazone")
@@ -275,10 +275,10 @@ CRF$ADM <- CRF$ADM |>
          MI_HIS, CHF, PVD, CVD, DEMENTIA, CPD, CTD, PUD, MILD_LIVER, SEV_LIVER,
          HEMIPLEGIA, SEV_RENAL, starts_with("DIAB"), TUMOR_NOMETA, LEUKEMIA, LYMPHOMA,
          META_TUMOR, ANB_ADMISSION) |> 
-  mutate(hospitaltype = ifelse(SITEID %in% c("010", "159"), 1, 2),
+  mutate(hospitaltype = ifelse(SITEID %in% c("010", "159"), "provincial", "district"),
          age = 2025 - YEAR_BIRTH + 1,
-         Ab_history = ifelse(ANB_ADMISSION %in% c(1, 4), 0, 1),
-         wardtype = ifelse(WARD_3 == 1, "surgical", "medical/ID")) |> 
+         Ab_history = ANB_ADMISSION %in% c(1, 4), # 1: No; 4: Don't know
+         wardtype = ifelse(WARD_3 == 1, "surgical", "medical/ID")) |>                  ####################
   select(-YEAR_BIRTH, -ANB_ADMISSION, -WARD_3)
 ```
 
@@ -300,15 +300,13 @@ CRF$DEMO_HIS <- CRF$DEMO_HIS |>
          smoking = case_match(SMOKING, "1" ~ "current smoker",
                                        "2" ~ "former smoker",
                                        .default = "all non-smokers"),
-         children = ifelse(CHILDREN < 1, "no children in the household",
-                                         "with children in the household"),
-         married = ifelse(MARITAL == 1, "married", "other"),
-         ambulatory = ifelse(AMBULATORY == 1, "independent", "not independent"),
+         children = CHILDREN > 0,
+         married = MARITAL < 2,
+         independent = AMBULATORY < 2,
          across(starts_with(c("ALCOHOL", "DRUG")), as.integer),
-         alcohol = ifelse(ALCOHOL_CUTDOWN + ALCOHOL_ANNOYED + ALCOHOL_GUILTY +
-                            ALCOHOL_DRUG < 5, "0 problem", "1-4 problem"),
-         drug = ifelse(DRUG_CUTDOWN + DRUG_ANNOYED + DRUG_GUILTY + 
-                         DRUG_DRUG < 5, "0 problem", "1-4 problem")) |> 
+         alcohol_problem = ALCOHOL_CUTDOWN + ALCOHOL_ANNOYED + ALCOHOL_GUILTY +
+           ALCOHOL_DRUG > 4,
+         drug_problem = DRUG_CUTDOWN + DRUG_ANNOYED + DRUG_GUILTY + DRUG_DRUG > 4) |> 
   select(-MARITAL, -starts_with2("JOB"), -ADULT, -CHILDREN, -AMBULATORY, -SMOKING,
          -starts_with2("ALCOHOL"), -starts_with2("DRUG"))
 ```
