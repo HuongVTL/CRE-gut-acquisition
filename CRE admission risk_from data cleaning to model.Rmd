@@ -122,7 +122,8 @@ The path to the data folder:
 ```{r constants}
 if (grepl("arc|hoisy", Sys.getenv("USER"))) {
   path2data <- paste0("~/Library/CloudStorage/OneDrive-OxfordUniversityClinical",
-                      "ResearchUnit/GitHub/HuongVTL/CRE-gut-acquisition/Data/")
+                      "ResearchUnit/GitHub/HuongVTL/CRE-gut-acquisition/SharePoint/",
+                      "Data/")
 } else {
   path2data <- paste("C:/Users/huongvtl/OneDrive - Oxford University Clinical",
                      "Research Unit/60HN CRE transmission manuscript/")
