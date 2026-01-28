@@ -509,5 +509,6 @@ glmmLasso(mod_formula, SITEID ~ 1, dataset, 0, binomial(link = "logit"))
 ```
 
 
+## Trying the brms package
 
                   
