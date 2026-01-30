@@ -511,4 +511,15 @@ glmmLasso(mod_formula, SITEID ~ 1, dataset, 0, binomial(link = "logit"))
 
 ## Trying the brms package
 
-                  
+```{r}
+dataset <- "Escherichia coli" |> 
+  make_data() #|> 
+#  as_tibble() |> 
+#  na.exclude() |> 
+#  mutate(across(where(~ !is.numeric(.x)), as.factor))
+```
+
+```{r}
+
+```
+
