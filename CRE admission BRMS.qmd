@@ -655,7 +655,7 @@ priors3 <- c(
   set_prior("student_t(3,0,2.5)", class = "sd")
 )
 
-# Construct full model formula and fit (example)
+# Construct full model formula
 
 dataset <- dataset %>% mutate(carrier01 = as.integer(carrier == "TRUE"))
 formula_brm <- as.formula(paste0("carrier01 ~ ", rhs, " + (1 | SITEID)"))
@@ -714,11 +714,11 @@ print(bayes_R2(brms_model))
 ```{r}
 # Compare full vs reduced model without comorb
 
-fit_no_comorb <- update(brms_model,
-                        formula = update(formula_brm, ~ . - vascular_disease - cancer - CPD - CTD - PUD - MILD_LIVER - SEV_LIVER - HEMIPLEGIA - SEV_RENAL - DIAB_NOEOD - DIAB_EOD, 
-                                         refresh = 0))
+#fit_no_comorb <- update(brms_model,
+#                        formula = update(formula_brm, ~ . - vascular_disease - cancer - CPD - CTD - PUD - MILD_LIVER - SEV_LIVER - HEMIPLEGIA - SEV_RENAL - DIAB_NOEOD - DIAB_EOD, 
+#                                         refresh = 0))
 
-loo(brms_model, fit_no_comorb)
+#loo(brms_model, fit_no_comorb)
 
 # Compare full vs models with less aggressive priors
 fit_sens1 <- update(brms_model, prior = priors1, refresh = 0)

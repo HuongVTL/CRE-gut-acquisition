@@ -1,5 +1,5 @@
 ---
-title: "60HN - ASPARNet study - CRE Admission Risk: Datasets, Variables and Models"
+title: "CRE Admission Risk BRMS MODEL"
 author: "Vu Thi Lan Huong & Marc Choisy"
 format: html
 toc: TRUE
@@ -570,11 +570,11 @@ summary(brms_model_priors1)
 ## FOR stronger shrinkage (for variable selection), use the horseshoe prior: 
 
 n_p <- length(predictors)
-expected_nonzero <- 10
+expected_nonzero <- 5
 tau0 <- expected_nonzero / n_p
 
 priors2 <- c(
-  prior(horseshoe(df = 1, scale_global = tau0), class = "b"),
+  prior(horseshoe(df = 3, scale_global = tau0), class = "b"),
   prior(normal(0,1), class = "Intercept"),
   prior(student_t(3,0,2.5), class = "sd")
 )
@@ -597,6 +597,25 @@ summary(brms_model_priors2)
 
 ```{r}
 
+#PIRORS1
+priors1 <- c(
+  prior(normal(0, 1.5), class = "b"),        # coefficient shrinkage
+  prior(normal(0, 1), class = "Intercept"),
+  prior(student_t(3, 0, 2.5), class = "sd") # random intercept SD
+)
+
+#PRIORS2 using a less aggressive horseshoe prior
+n_p <- length(predictors)
+expected_nonzero <- 5
+tau0 <- expected_nonzero / n_p
+
+priors2 <- c(
+  prior(horseshoe(df = 3, scale_global = tau0), class = "b"),
+  prior(normal(0,1), class = "Intercept"),
+  prior(student_t(3,0,2.5), class = "sd")
+)
+
+#PRIORS3 using an aggressive horseshoe prior
 # dataset is your data frame; outcome = carrier (factor)
 n <- nrow(dataset)
 
@@ -613,7 +632,7 @@ mm <- model.matrix(fmla_for_count, data = tmp)
 p_effective <- ncol(mm)  # effective number of b coefficients (excluding intercept)
 
 # Choose expected number of non-zero coefficients (m0)
-m0 <- 10    # change to 3 or 10 to test sensitivity
+m0 <- 5    # change to 3 or 10 to test sensitivity
 
 # Choose sigma: use 1 for logistic or pi/sqrt(3) ~ 1.8138 for latent logistic sd
 sigma_choice <- 1         # or sigma_choice <- pi / sqrt(3)
@@ -638,25 +657,17 @@ priors3 <- c(
 
 # Construct full model formula and fit (example)
 
-#dataset <- dataset %>% mutate(carrier01 = as.integer(carrier == "TRUE"))
-#formula_brm <- as.formula(paste0("carrier01 ~ ", rhs, " + (1 | SITEID)"))
+dataset <- dataset %>% mutate(carrier01 = as.integer(carrier == "TRUE"))
+formula_brm <- as.formula(paste0("carrier01 ~ ", rhs, " + (1 | SITEID)"))
 
-#brms_model <- brm(
-#  formula = formula_brm,
-#  data = dataset,
-#  family = bernoulli(link = "logit"),
-#  prior = priors,
-#  chains = 4, cores = 4, iter = 4000, warmup = 2000,
-#  control = list(adapt_delta = 0.99, max_treedepth = 15),
-#  seed = 2026
-#)
+
 ```
 
-## Run brms model with priors
+## Run brms model with horseshoe priors
 
 ```{r}
-brms_model2 <- brms::brm(as.numeric(carrier) ~ . - SITEID + (1 | SITEID),
-                        dataset, family = brms::bernoulli(link = "logit"),
+brms_model <- brms::brm(formula = formula_brm,
+                        dataset, family = bernoulli(link = "logit"),
                         prior = priors3,
                         chains = 4,
                         cores = parallel::detectCores(),
@@ -665,47 +676,63 @@ brms_model2 <- brms::brm(as.numeric(carrier) ~ . - SITEID + (1 | SITEID),
                         control = list(adapt_delta = 0.999, max_treedepth = 15),
                         seed = 2026)
 
-summary(brms_model2) -> model10 #expected number of non-zero coefficients == 10
+summary(brms_model) -> full_model #expected number of non-zero coefficients == 5
 ```
 
 ## Convergence check
 
 ```{r}
 # check for convergence warnings
-#bad_rhats <- rhat(brms_model2)[rhat(brms_model2) > 1.01]
+#bad_rhats <- rhat(brms_model)[rhat(brms_model) > 1.01]
 #if (length(bad_rhats) > 0) {
 #  message("Warning: some parameters have R-hat > 1.01. Consider more iterations or #stronger priors.")
 #}
 
 # effective sample sizes, monitor
-#monitor(brms_model2)
+#monitor(brms_model)
 
 # Check divergent transitions in sampler diagnostics (inspect sampler_diagnostics in console for divergences / treedepth warnings)
-sampler_diagnostics <- nuts_params(brms_model2)
+sampler_diagnostics <- nuts_params(brms_model)
 
 # trace plots for a few parameters
-mcmc_trace(as_draws_df(brms_model2)[, c(intersect(names(as_draws_df(brms_model2)), c("age","sd_SITEID__Intercept")))])
+mcmc_trace(as_draws_df(brms_model)[, c(intersect(names(as_draws_df(brms_model)), c("age", "children","sd_SITEID__Intercept")))])
 ```
 
 ## Model checks
 
 ```{r}
-pp_check(brms_model2, ndraws = 200)   # posterior predictive check
+pp_check(brms_model, ndraws = 200)   # posterior predictive check
 
-loo_model <- loo(brms_model2, moment_match = FALSE)
+loo_model <- loo(brms_model, moment_match = FALSE)
 print(loo_model)
 
-print(bayes_R2(brms_model2))
+print(bayes_R2(brms_model))
+```
+
+## Compare full versus reduced model and less aggressive model
+
+```{r}
+# Compare full vs reduced model without comorb
+
+fit_no_comorb <- update(brms_model,
+                        formula = update(formula_brm, ~ . - vascular_disease - cancer - CPD - CTD - PUD - MILD_LIVER - SEV_LIVER - HEMIPLEGIA - SEV_RENAL - DIAB_NOEOD - DIAB_EOD, 
+                                         refresh = 0))
+
+loo(brms_model, fit_no_comorb)
+
+# Compare full vs models with less aggressive priors
+fit_sens1 <- update(brms_model, prior = priors1, refresh = 0)
+fit_sens2 <- update(brms_model, prior = priors2, refresh = 0)
 ```
 
 ## Posterior summaries
 
 ```{r}
-post_summary <- posterior_summary(brms_model2)
+post_summary <- posterior_summary(brms_model)
 post_summary[grep("^b_", rownames(post_summary)), , drop = FALSE]  # show coefficients
 
 # Posterior draws
-draws <- as_draws_df(brms_model2)
+draws <- as_draws_df(brms_model)
 
 # Extract fixed effects only
 beta_draws <- draws %>% select(starts_with("b_"))
