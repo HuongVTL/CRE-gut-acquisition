@@ -721,8 +721,8 @@ print(bayes_R2(brms_model))
 #loo(brms_model, fit_no_comorb)
 
 # Compare full vs models with less aggressive priors
-fit_sens1 <- update(brms_model, prior = priors1, refresh = 0)
-fit_sens2 <- update(brms_model, prior = priors2, refresh = 0)
+#fit_sens1 <- update(brms_model, prior = priors1, refresh = 0)
+#fit_sens2 <- update(brms_model, prior = priors2, refresh = 0)
 ```
 
 ## Posterior summaries
