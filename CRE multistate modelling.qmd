@@ -1,15 +1,23 @@
 ---
 title: "MSM model"
-format: html
+number-sections: true
+format:
+  html:
+    toc: true
+    toc-depth: 4
 editor: visual
+editor_options: 
+  chunk_output_type: console
 ---
 
 Source: [60HN: CRE burden at admission and discharge](https://choisy.github.io/60HN/analysis.html)
 
-## **1 Constants**
+## Constants
+
+The path to the data folder:
 
 ```{r}
-if (grepl("arc|hoisy", Sys.getenv("USER"))) {
+if (Sys.getenv("USER") == "MarcChoisy") {
   path2data <- paste0("~/Library/CloudStorage/OneDrive-OxfordUniversityClinical",
                       "ResearchUnit/GitHub/HuongVTL/CRE-gut-acquisition/")
 } else {
@@ -18,23 +26,32 @@ if (grepl("arc|hoisy", Sys.getenv("USER"))) {
 }
 ```
 
+The names of the data files:
+
 ```{r}
 discharge_file <- "60HN - DischargeDate_no_discharge_sample_27Nov25.xlsx"
 
 CRF_file <- "16-12-2025-_60HN_PATIENT_P1_Data.xls"
 
 MALDITOF_file <- "60HN_ID_MALDITOF_confirmation_20251128.xlsx"
+```
 
-mpd <- 1440
-spd <- 86400
-
-nb_cores <- parallel::detectCores() - 1
+```{r}
+#nb_cores <- parallel::detectCores() - 1
 #nb_cores <- 1
 ```
 
-Definitions
+Numbers of minutes and seconds per day:
 
-ICD10 groups
+```{r}
+mpd <- 1440
+spd <- 86400
+```
+
+
+### Definitions
+
+ICD10 groups:
 
 ```{r}
 id_intestinal <- c("A04", "A04.8", "A04.9", "A05.9", "A06.4", "A08.0", "A08.5", "A09",
@@ -79,7 +96,7 @@ genitourinary_diseases <- c("N00", "N13.2", "N13.3", "N13.6", "N17", "N17.9", "N
                             "N40", "N43.2", "N45", "N47", "N48.1", "N70")
 ```
 
-Antimicrobials
+Antimicrobials:
 
 ```{r}
 cefoperazone <- c("Cefoperazol","Cefoperazole", "Cefoperazon", "Cefoperazone")
@@ -96,7 +113,7 @@ ticarcillin_acid_clavulan <- c("Ticarcillin + Acid clavulanic",
                                "Ticarcillin/acid clavulanic")
 ```
 
-## **2 Packages**
+## Packages
 
 ```{r}
 required <- c("readxl", "purrr", "dplyr", "lubridate", "magrittr", "tidyr", "msm",
@@ -110,7 +127,7 @@ invisible(sapply(required, library, character.only = TRUE))
 plan(multisession)
 ```
 
-## **3 General functions**
+## General functions
 
 A function that pastes a vector of dates and a vector of times both in character format and returns a `dttm` vector:
 
@@ -409,7 +426,7 @@ extract_hr_msm <- function(fit) {
 }
 ```
 
-## **4 Discharge dates**
+## Discharge dates
 
 Loading the discharge dates for the patients who did not provide any sample at discharge:
 
@@ -420,7 +437,7 @@ Loading the discharge dates for the patients who did not provide any sample at d
   select(-No, -SiteID, -`Discharge date (2)`))
 ```
 
-## **5 CRF data**
+## CRF data
 
 Reading the data (it takes **1”**):
 
@@ -435,7 +452,7 @@ CRF <- file |>
   map(~ filter(.x, entry > 1))
 ```
 
-### **5.1 Samples dates**
+### Samples dates
 
 The dates of samples collection at admission and discharge (takes **10”**):
 
@@ -492,7 +509,7 @@ dates |>
   filter(DISCHARGE < ADMISSION)
 ```
 
-### **5.2 Wards**
+### Wards
 
 Generating the ward data:
 
@@ -516,7 +533,7 @@ nb_wards |>
   print(n = Inf)
 ```
 
-### **5.3 Enrolled**
+### Enrolled
 
 A function that computes the data for ward occupancy:
 
@@ -602,7 +619,7 @@ par(opar)
 dev.off()
 ```
 
-### **5.4 Durations**
+### Durations
 
 The distribution of the durations of stay in the wards: Distribution of time spent in the ward
 
@@ -635,7 +652,7 @@ with(the_model, {
 })
 ```
 
-### **5.5 Patient-level covariates**
+### Patient-level covariates
 
 Patient-level covariates to adjust for in the msm of CRE acqusition during hospitalization:
 
@@ -828,7 +845,7 @@ covariates_pt <- covariates_1 |>
 covariates_pt
 ```
 
-## **6 MALDI-TOF data**
+## MALDI-TOF data
 
 List of genus to exclude:
 
@@ -1020,7 +1037,7 @@ plot_changes("Escherichia coli")
 plot_changes("Klebsiella pneumoniae")
 ```
 
-### **7.1 All CRE**
+### All CRE
 
 The number of enrolled patient with CRE at admission as a function of time for each ward (takes **1.5”**):
 
@@ -1132,7 +1149,7 @@ proportion_CRE |>
 par(opar)
 ```
 
-### **7.2 *K. pneumoniae***
+### *K. pneumoniae*
 
 Here we have the same plots as for the previous section but for *K. pneumoniae* only. First the number of enrolled patient with CRE *K. pneumoniae* at admission as a function of time for each ward (takes **1”**):
 
@@ -1180,9 +1197,9 @@ ward_dates |>
 par(opar)
 ```
 
-## **8 Data preparation**
+## Data preparation
 
-### **8.1 Minimum data**
+### Minimum data
 
 A function that generates the presence/absence data (coded as 2/1 here) from the output `x` of the MALDITOF where `id` is the column of `x` that contains the patient ID, `time_point` is the column of `x` that contains the time point of the sample (e.g. `ADMISSION` or `DISCHARGE`), `identification` is the column of `x` that contains the bacteria identified by the MALDITOF and `bacteria` is a vector of characters that contains the names of the bacteria that we want to test the presence of.
 
@@ -1288,7 +1305,7 @@ msm_data2 <- function(bacteria) msm_data(MALDITOF, dates, USUBJID, SampleSchedul
                                          DISCHARGE)
 ```
 
-### **8.2 Covariates**
+### Covariates
 
 The following function adds to the output `x` of the `msm_data()` function the covariate `otherCRE` that tells whether at admission the patient had a CRE other than the set of `bacteria`:
 
@@ -1340,9 +1357,9 @@ add_covariates_pt <- function(x) left_join(x, covariates_pt, "USUBJID")
 
 This function relies on the `covariates_pt` data frame generated in the section [Section 5.](https://choisy.github.io/60HN/analysis.html#sec-wards)5.
 
-## **9 *K. pneumoniae***
+## *K. pneumoniae*
 
-### **9.1 Preparing the data**
+### Preparing the data
 
 Generating the presence/absence of *K. pneumoniae* (takes **2.5”**):
 
@@ -1433,9 +1450,9 @@ table(Kp_msm_cov$state[Kp_msm_cov$days == 0])   # admission
 table(Kp_msm_cov$state[Kp_msm_cov$days > 0])   # discharge
 ```
 
-### **9.2 Multi-state modelling**
+### Multi-state modelling
 
-#### **9.2.1 State definition and transition structure**
+#### State definition and transition structure
 
 We defined a two-state continuous-time multistate model with the following states:
 
@@ -1453,7 +1470,7 @@ Clearance (2 → 1) was included to allow reversibility of carriage status betwe
 
 Time was measured in days since admission. Discharge defined the end of the observation period and was treated as right censoring rather than as a separate state. Transition intensities are therefore interpreted conditional on the observed follow-up time. Because discharge terminates observation and may be related to patient status, it may represent an informative censoring mechanism, which is not explicitly modeled in this framework.
 
-#### **9.2.2 Basic operations**
+#### Basic operations
 
 Defining the structure of the Q matrix:
 
@@ -1504,7 +1521,7 @@ Log-likelihood of the model:
 logLik(Kp_msm_fit)
 ```
 
-#### **9.2.3 Bootstrapped CIs**
+#### Bootstrapped CIs
 
 Bootstrapping was used to obtain robust confidence intervals for transition intensities due to potential model uncertainty and interval censoring.
 
@@ -1566,9 +1583,9 @@ Or, equivalently, in a formatted output:
 boot_ci(q_array)
 ```
 
-#### **9.2.4 Covariates**
+#### Covariates
 
-##### **9.2.4.1 One Covariate**
+##### One Covariate
 
 Covariates were applied to a specific transition (i.e. acquisition only).
 
@@ -1599,7 +1616,7 @@ qmatrix.msm(Kp_msm_cov_fit, covariates=list(otherCRE = TRUE))
 
 Summary: The covariate was not associated with infection risk when modeled as a continuous, dichotomized, or categorized variable. In the quartile-based analysis, no significant differences were observed across groups, and no clear dose-response relationship was evident.
 
-##### **9.2.4.2 More Covariates**
+##### More Covariates
 
 Fit-test
 
@@ -1698,7 +1715,7 @@ covariates1 = list(
                        covariates = covariates1))
 ```
 
-#### **9.2.5 Diagnostics**
+#### Diagnostics
 
 Model fit was assessed by comparing observed and expected state prevalences over time.
 
@@ -1714,9 +1731,9 @@ plot.prevalence.msm(Kp_msm_cov_fit, mintime = 0, maxtime = 15,
                     legend.pos = c(5, 90))
 ```
 
-## **10 *E. coli***
+## *E. coli*
 
-### **10.1 Preparing the data**
+### Preparing the data
 
 Generating the presence/absence of *E. coli* (takes **2.5”**):
 
@@ -1781,9 +1798,9 @@ table(Ec_msm_cov$state[Ec_msm_cov$days == 0])   # admission table
 #(Ec_msm_cov$state[Ec_msm_cov$days > 0])   # discharge
 ```
 
-### **10.2 Multi-state modelling**
+### Multi-state modelling
 
-#### **10.2.1 State definition and transition structure**
+#### State definition and transition structure
 
 We defined a two-state continuous-time multistate model with the following states:
 
@@ -1801,7 +1818,7 @@ Clearance (2 → 1) was included to allow reversibility of carriage status betwe
 
 Time was measured in days since admission. Discharge defined the end of the observation period and was treated as right censoring rather than as a separate state. Transition intensities are therefore interpreted conditional on the observed follow-up time. Because discharge terminates observation and may be related to patient status, it may represent an informative censoring mechanism, which is not explicitly modeled in this framework.
 
-#### **10.2.2 Basic operations**
+#### Basic operations
 
 ```{R}
 (Ec_msm_fit <- bsm(state ~ days, USUBJID, Ec_msm))
@@ -1831,7 +1848,7 @@ Log-likelihood of the model:
 logLik(Ec_msm_fit)
 ```
 
-#### **10.2.3 Bootstrapped CIs**
+#### Bootstrapped CIs
 
 Bootstrapping was used to obtain robust confidence intervals for transition intensities due to potential model uncertainty and interval censoring.
 
@@ -1865,9 +1882,9 @@ The bootstrap estimate of the 95% confidence interval:
 boot_ci(q_array)
 ```
 
-#### **10.2.4 Covariates**
+#### Covariates
 
-##### **10.2.4.1 One Covariate**
+##### One Covariate
 
 Covariates were applied to a specific transition (i.e. acquisition only).
 
@@ -1893,7 +1910,7 @@ qmatrix.msm(Ec_msm_cov_fit, covariates=list(otherCRE = TRUE))
 
 Summary: The covariate was not associated with infection risk when modeled as a continuous, dichotomized, or categorized variable. In the quartile-based analysis, no significant differences were observed across groups, and no clear dose-response relationship was evident.
 
-##### **10.2.4.2 More Covariates**
+##### More Covariates
 
 Fit-test
 
@@ -1988,7 +2005,7 @@ covariates_Ec = list("1-2" = ~ age + early_DOT + wardtype)
                        covariates = covariates_Ec))
 ```
 
-#### **10.2.5 Diagnostics**
+#### Diagnostics
 
 Model fit was assessed by comparing observed and expected state prevalences over time.
 
