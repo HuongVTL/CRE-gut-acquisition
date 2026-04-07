@@ -18,13 +18,16 @@ The path to the data folder:
 
 ```{r}
 if (Sys.getenv("USER") == "MarcChoisy") {
-  path2data <- paste0("~/Library/CloudStorage/OneDrive-OxfordUniversityClinical",
-                      "ResearchUnit/GitHub/HuongVTL/CRE-gut-acquisition/")
+  path2data <- paste0("~/Library/CloudStorage/",
+                      "OneDrive-OxfordUniversityClinicalResearchUnit/SharePoint/",
+                      "AMS Data Analysis and Modelling Team/CRE gut acquisition/data/")
 } else {
   path2data <- paste("C:/Users/huongvtl/OneDrive - Oxford University Clinical",
                      "Research Unit/60HN CRE transmission manuscript/")
 }
 ```
+
+~/Library/CloudStorage/OneDrive-OxfordUniversityClinicalResearchUnit/SharePoint/AMS Data Analysis and Modelling Team/CRE gut acquisition/data
 
 The names of the data files:
 
@@ -416,7 +419,7 @@ CRF <- file |>
 
 ### Samples dates
 
-The dates of samples collection at admission and discharge (takes **10”**):
+The dates of samples collection at admission and discharge (takes **10”**):
 
 ```{r}
 dates <- CRF |> 
@@ -463,7 +466,7 @@ The total number of samples is:
 (nb_samples <- nb_samples_admission + nb_samples_discharge)
 ```
 
-Verifying that `DISCHARGE` is after `ADMISSION`:
+Verifying that `DISCHARGE` is after `ADMISSION`:
 
 ```{r}
 dates |> 
@@ -533,7 +536,7 @@ plot_occ <- function(x, y = NULL, ...) {
 }
 ```
 
-where `x` is an output from `ward_occupancy()` and `y` is the date of the last admission of the ward. Putting the ward and dates data together, using `discharge_dates` for patients who did not provide any sample at discharge (for the latter, the time is set to noon and, for those who have admission and discharge the same day with admission in the afternoon, discharge time is then set to one hour after admission):
+where `x` is an output from `ward_occupancy()` and `y` is the date of the last admission of the ward. Putting the ward and dates data together, using `discharge_dates` for patients who did not provide any sample at discharge (for the latter, the time is set to noon and, for those who have admission and discharge the same day with admission in the afternoon, discharge time is then set to one hour after admission):
 
 ```{r}
 (ward_dates <- wards |>
@@ -546,7 +549,7 @@ where `x` is an output from `ward_occupancy()` and `y` is the date of the 
   select(- `Discharge date`))
 ```
 
-Verifying that `DISCHARGE` is after `ADMISSION`:
+Verifying that `DISCHARGE` is after `ADMISSION`:
 
 ```{r}
 ward_dates |> 
@@ -570,15 +573,15 @@ last_admissions <- ward_dates |>
 
 Computing and plotting the ward occupancies: Number of patients enrolled as a function of time for each ward. The red vertical line indicates the last enrollment.
 
-```{r}
-#pdf("ward_occupancy_plots.pdf", width = 14, height = 10)
-opar <- par(mfrow = c(4, 2), mar = c(2, 2, 1, 1))
+```{r fig.height = 10.38, fig.width  = 8.3, purl = FALSE}
+#| fig-cap: "Number of patients enrolled as a function of time for each ward. The red
+#| vertical line indicates the last enrollment."
+opar <- par(mfrow = c(8, 2))
 ward_dates |> 
   group_by(ward) |> 
   group_map(~ ward_occupancy(.x), .keep = TRUE) |> 
   walk2(last_admissions, plot_occ, ann = FALSE)
 par(opar)
-dev.off()
 ```
 
 ### Durations
