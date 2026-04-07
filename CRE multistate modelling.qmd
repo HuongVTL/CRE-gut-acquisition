@@ -700,15 +700,15 @@ covariates_3
 covariates_4 <- CRF |>    
   extract2("DIS") |>    
   select(USUBJID, DISCHARGE, FINAL_DIAG_ICD10) |> 
-  mutate(ICDGroup = case_match(FINAL_DIAG_ICD10,
-                               id_intestinal ~ "ID (Intestinal)",
-                               id_other ~ "ID (Other)",
-                               neoplasms ~ "Neoplasms",
-                               circulatory_diseases ~ "Circulatory diseases",
-                               respiratory_diseases ~ "Respiratory diseases",
-                               digestive_diseases ~ "Digestive diseases",
-                               genitourinary_diseases ~ "Genitourinary diseases",
-                               .default = "Other"))|> 
+  mutate(ICDGroup = recode_values(FINAL_DIAG_ICD10,
+                                  id_intestinal ~ "ID (Intestinal)",
+                                  id_other ~ "ID (Other)",
+                                  neoplasms ~ "Neoplasms",
+                                  circulatory_diseases ~ "Circulatory diseases",
+                                  respiratory_diseases ~ "Respiratory diseases",
+                                  digestive_diseases ~ "Digestive diseases",
+                                  genitourinary_diseases ~ "Genitourinary diseases",
+                                  default = "Other"))|> 
   select(-FINAL_DIAG_ICD10)
 ```
 
@@ -719,18 +719,18 @@ AB_after_admission <- CRF |>
   extract2("ANT_ANB_HOSP_GRID") |> 
   select(USUBJID, ANB_HOSP_NAME, ANB_OTHER_SPEC, ANB_HOSP_START_DATE,
          ANB_HOSP_END_DATE) |> 
-  mutate(agent = case_match(ANB_OTHER_SPEC,
-                            cefoperazone              ~ "Cefoperazone",
-                            ampicill_sulb             ~ "Ampicillin_sulbactam",
-                            cefamandol                ~ "Cefamandol",
-                            cefo_sulb                 ~ "Cefoperazon_sulbactam",
-                            cefazolin                 ~ "Cefazolin",
-                            cefprozil                 ~ "Cefprozil",
-                            cefradin                  ~ "Cefradin",
-                            ceftizoxime               ~ "Ceftizoxime",
-                            cefmetazol                ~ "Cefmetazol",
-                            ticarcillin_acid_clavulan ~ "Ticarcillin/acid clavulanic",
-                            .default = ANB_HOSP_NAME),
+  mutate(agent = recode_values(ANB_OTHER_SPEC,
+                             cefoperazone              ~ "Cefoperazone",
+                             ampicill_sulb             ~ "Ampicillin_sulbactam",
+                             cefamandol                ~ "Cefamandol",
+                             cefo_sulb                 ~ "Cefoperazon_sulbactam",
+                             cefazolin                 ~ "Cefazolin",
+                             cefprozil                 ~ "Cefprozil",
+                             cefradin                  ~ "Cefradin",
+                             ceftizoxime               ~ "Ceftizoxime",
+                             cefmetazol                ~ "Cefmetazol",
+                             ticarcillin_acid_clavulan ~ "Ticarcillin/acid clavulanic",
+                             default = ANB_HOSP_NAME),
          DOT = as.numeric((ANB_HOSP_END_DATE - ANB_HOSP_START_DATE) / spd + 1)) |> 
   group_by(USUBJID, agent) |> 
   summarise(DOT = sum(DOT, na.rm=TRUE), .groups = "drop") |> 
@@ -753,16 +753,10 @@ Admission_date <- CRF |>
   distinct(USUBJID, ADMISSION_DATE)
 
 abx_early <- CRF$ANT_ANB_HOSP_GRID |>
-  select(
-    USUBJID,
-    ANB_HOSP_NAME,
-    ANB_OTHER_SPEC,
-    ANB_HOSP_START_DATE,
-    ANB_HOSP_END_DATE
-  ) |>
+  select(USUBJID, ANB_HOSP_NAME, ANB_OTHER_SPEC, ANB_HOSP_START_DATE,
+         ANB_HOSP_END_DATE) |>
   left_join(Admission_date, by = "USUBJID") |>
-  filter(
-    !is.na(ADMISSION_DATE),
+  filter(!is.na(ADMISSION_DATE),
     !is.na(ANB_HOSP_START_DATE),
     !is.na(ANB_HOSP_END_DATE)
   ) |>
