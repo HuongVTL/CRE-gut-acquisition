@@ -332,14 +332,12 @@ A function to extract summary data eg n/N
 
 ```{r}
 get_nN <- function(var, data) {
-  
   x <- data[[var]]
   
-  # binary (logical or 0/1)
-  if (is.logical(x) || (is.numeric(x) && all(x %in% c(0,1,NA)))) {
+# binary (logical or 0/1):
+  if (is.logical(x) || (is.numeric(x) && all(x %in% c(0, 1, NA)))) {
     n <- sum(x == TRUE, na.rm = TRUE)
     N <- sum(!is.na(x))
-    
     return(data.frame(
       variable = paste0(var, "TRUE"),
       n = n,
@@ -348,11 +346,10 @@ get_nN <- function(var, data) {
     ))
   }
   
-  # factor / character
+# factor / character
   if (is.factor(x) || is.character(x)) {
     tab <- table(x, useNA = "no")
     N <- sum(tab)
-    
     return(data.frame(
       variable = paste0(var, names(tab)),
       n = as.numeric(tab),
@@ -361,43 +358,32 @@ get_nN <- function(var, data) {
     ))
   }
   
-  # continuous → return NULL (handled separately)
+# continuous -> return NULL (handled separately)
   return(NULL)
 }
 ```
 
-A function to extract HR from msm to a table format
+A function to extract HR from `msm` to a table format
 
 ```{r}
 extract_hr_msm <- function(fit) {
-  
   s <- summary(fit)
-  
   if (is.null(s$hazard)) return(NULL)
-  
   hazard_list <- s$hazard
-  
   results_list <- list()
-  
   for (name in names(hazard_list)) {
-    
     mat <- as.data.frame(hazard_list[[name]])
-    
-    # keep only 1→2 transition
+# keep only 1 -> 2 transition:
     mat <- mat[grep("State 1 - State 2", rownames(mat)), , drop = FALSE]
-    
-    # skip if empty or missing columns
+# skip if empty or missing columns:
     if (nrow(mat) == 0 || !all(c("HR", "L", "U") %in% colnames(mat))) next
-    
     results_list[[name]] <- data.frame(
       HR = mat$HR[1],
       lower = mat$L[1],
       upper = mat$U[1]
     )
   }
-  
   if (length(results_list) == 0) return(NULL)
-  
   bind_rows(results_list)
 }
 ```
