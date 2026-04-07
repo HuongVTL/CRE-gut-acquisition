@@ -10,22 +10,6 @@ editor_options:
   chunk_output_type: console
 ---
 
-```{r setup, include = FALSE}
-par2 <- function(...) par(..., mgp = c(1.5, .5, 0), bty = "n")
-
-knitr::knit_hooks$set(
-  margin1 = function(before, options, envir) {
-    if (before) par2(plt = c(.105, .97, .15, .95)) else NULL
-  })
-
-eps <- .8
-knitr::opts_chunk$set(margin1    = TRUE,
-                      fig.retina = 2,
-                      fig.align  = "center",
-                      fig.height = eps * 5, # default is 5
-                      fig.width  = eps * 7) # default is 7 and maximum possible is 8.3
-```
-
 Source: [60HN: CRE burden at admission and discharge](https://choisy.github.io/60HN/analysis.html)
 
 ## Constants
@@ -37,10 +21,28 @@ if (Sys.getenv("USER") == "MarcChoisy") {
   path2data <- paste0("~/Library/CloudStorage/",
                       "OneDrive-OxfordUniversityClinicalResearchUnit/SharePoint/",
                       "AMS Data Analysis and Modelling Team/CRE gut acquisition/data/")
+  #path2cache <- 
 } else {
   path2data <- paste("C:/Users/huongvtl/OneDrive - Oxford University Clinical",
                      "Research Unit/60HN CRE transmission manuscript/")
 }
+```
+
+```{r setup, include = FALSE}
+par2 <- function(...) par(..., mgp = c(1.5, .5, 0), bty = "n")
+
+knitr::knit_hooks$set(
+  margin1 = function(before, options, envir) {
+    if (before) par2(plt = c(.105, .97, .15, .95)) else NULL
+  })
+
+eps <- .8
+knitr::opts_chunk$set(cache.path = ,
+                      margin1    = TRUE,
+                      fig.retina = 2,
+                      fig.align  = "center",
+                      fig.height = eps * 5, # default is 5
+                      fig.width  = eps * 7) # default is 7 and maximum possible is 8.3
 ```
 
 ~/Library/CloudStorage/OneDrive-OxfordUniversityClinicalResearchUnit/SharePoint/AMS Data Analysis and Modelling Team/CRE gut acquisition/data
@@ -49,9 +51,7 @@ The names of the data files:
 
 ```{r}
 discharge_file <- "60HN - DischargeDate_no_discharge_sample_27Nov25.xlsx"
-
 CRF_file <- "16-12-2025-_60HN_PATIENT_P1_Data.xls"
-
 MALDITOF_file <- "60HN_ID_MALDITOF_confirmation_20251128.xlsx"
 ```
 
@@ -136,14 +136,12 @@ ticarcillin_acid_clavulan <- c("Ticarcillin + Acid clavulanic",
 
 ```{r}
 required <- c("readxl", "purrr", "dplyr", "lubridate", "magrittr", "tidyr", "msm",
-              "rlang", "mgcv", "gratia", "alluvial", "furrr", "parallel")
+              "rlang", "mgcv", "gratia", "alluvial", "parallel")
 
 to_install <- required[! required %in% installed.packages()[,"Package"]]
 if (length(to_install)) install.packages(to_install)
 
 invisible(sapply(required, library, character.only = TRUE))
-
-plan(multisession)
 ```
 
 ## General functions
@@ -222,7 +220,7 @@ Example use:
 firstNA(c(1, 3, 2, 5, 3, NA, NA, 3, 2, 5, NA, 5, 3, 2, 6, NA, NA, NA, 1, 3, 2, 5, 3))
 ```
 
-A function that duplicates the first rows of a series of rows with NA values in the `colNA` column, and replaces the values of the `col_sel` columns with values of the row right before:
+A function that duplicates the first rows of a series of rows with NA values in the `colNA` column, and replaces the values of the `col_sel` columns with values of the row right before:
 
 ```{r}
 duplicate_NA_rows <- function(x, colNA = "estimate",
@@ -239,7 +237,7 @@ duplicate_NA_rows <- function(x, colNA = "estimate",
 }
 ```
 
-A function that splits a data frame `x` into a list of data frames according to the presence of missing values in the `col` column of the data frame:
+A function that splits a data frame `x` into a list of data frames according to the presence of missing values in the `col` column of the data frame:
 
 ```{r}
 remove_NAs <- function(x, col) {
@@ -262,7 +260,7 @@ remove_NAs(mtcars, carb)
 rm(mtcars)
 ```
 
-A tuning of the `msm()` function for a bi-state bi-directional case:
+A tuning of the `msm()` function for a bi-state bi-directional case:
 
 ```{r}
 bsm <- function(formula, subject, data, ...) {
@@ -275,7 +273,7 @@ bsm <- function(formula, subject, data, ...) {
 }
 ```
 
-A function that bootstraps estimates of the fitted multistate model `msm_fit` where `f` is the function that generates the estimates and `N` is the number of bootstrap repetitions:
+A function that bootstraps estimates of the fitted multistate model `msm_fit` where `f` is the function that generates the estimates and `N` is the number of bootstrap repetitions:
 
 ```{r}
 boot_msm <- function(msm_fit, f = qmatrix.msm, N = 1000, ...) {
@@ -286,7 +284,7 @@ boot_msm <- function(msm_fit, f = qmatrix.msm, N = 1000, ...) {
 }
 ```
 
-A function that generates statistic `f` estimates from bootstrap samples `boot_samples` outputed by `boot_msm()`:
+A function that generates statistic `f` estimates from bootstrap samples `boot_samples` outputed by `boot_msm()`:
 
 ```{r}
 boot_stat <- function(boots_samples, f = sd) {
@@ -298,7 +296,7 @@ boot_stat <- function(boots_samples, f = sd) {
 }
 ```
 
-A function that generates a `ci`% confidence interval from bootstrap samples `boot_samples` outputed by `boot_msm()`:
+A function that generates a `ci`% confidence interval from bootstrap samples `boot_samples` outputed by `boot_msm()`:
 
 ```{r}
 boot_ci <- function(boots_samples, ci = .95) {
@@ -310,7 +308,7 @@ boot_ci <- function(boots_samples, ci = .95) {
 }
 ```
 
-A function that computes `lubridate`-formatted durations:
+A function that computes `lubridate`-formatted durations:
 
 ```{r}
 time_diff <- function(x) as.duration(diff(x))
@@ -327,7 +325,7 @@ bsm_estimations <- function(x, event_names = c("colonization", "clearance")) {
 }
 ```
 
-Tunings of the `alluvial()` function:
+Tunings of the `alluvial()` function:
 
 ```{r}
 alluvial2 <- alluvial
@@ -341,7 +339,7 @@ alluvial3 <- function(x, print = TRUE, ...) {
 }
 ```
 
-The following function returns the hazard ratio of the covariates (with 95% confidence intervals) of an output of `msm()`:
+The following function returns the hazard ratio of the covariates (with 95% confidence intervals) of an output of `msm()`:
 
 ```{r}
 HR <- function(x) summary(x)$hazard
@@ -422,7 +420,7 @@ Loading the discharge dates for the patients who did not provide any sample at d
 
 Reading the data (it takes **1"**):
 
-```{r}
+```{r CRF, cache = TRUE}
 file <- paste0(path2data, CRF_file)
 
 CRF <- file |>
@@ -437,7 +435,7 @@ CRF <- file |>
 
 The dates of samples collection at admission and discharge (takes **10”**):
 
-```{r}
+```{r dates, cache = TRUE}
 dates <- CRF |> 
   extract2("SCR") |> 
   select(USUBJID, SPEC_DATE_ADMISSION, SPEC_TIME_ADMISSION,
@@ -684,16 +682,14 @@ hospitalization:
 ```
 
 ```{r}
-covariates_3 <- CRF |>    
+(covariates_3 <- CRF |>    
   extract2("DEMO_HIS_HISTORY_GRID") |>    
   select(USUBJID, HIS_CONDITION, HIS_YN) |> 
   mutate(across(HIS_YN, ~ .x > 1),
          across(HIS_CONDITION, ~ c("InvasiveHistory",
                                    "MedicationHistory", "TravelHistory",
                                    "HealthcareHistory")[as.integer(.x)])) |> 
-  pivot_wider(names_from = HIS_CONDITION, values_from = HIS_YN)
-
-covariates_3
+  pivot_wider(names_from = HIS_CONDITION, values_from = HIS_YN))
 ```
 
 ```{r}
@@ -794,7 +790,7 @@ Merging all `covariates_pt`
 
 ```{r}
 (covariates_pt <- list(covariates_1, covariates_2, covariates_3, covariates_4,
-                     AB_after_admission, abx_early) |> 
+                      AB_after_admission, abx_early) |> 
   reduce(left_join, by = "USUBJID"))
 ```
 
@@ -982,9 +978,7 @@ Let’s use this function to look at some example:
 
 ```{r}
 plot_changes()
-
 plot_changes("Escherichia coli")
-
 plot_changes("Klebsiella pneumoniae")
 ```
 
@@ -1268,7 +1262,7 @@ This function relies on the `covariates_pt` data frame generated in the section 
 
 Generating the presence/absence of *K. pneumoniae* (takes **2.5”**):
 
-```{r}
+```{r K_pneumoniae_raw, cache = TRUE}
 K_pneumoniae_raw <- presence_abscence(MALDITOF, USUBJID, SampleSchedule,
                                       Identification_MALDITOF, "Klebsiella pneumoniae")
 ```
@@ -1313,7 +1307,7 @@ Kp_msm
 
 Or, even simpler here (takes **2.5”**):
 
-```{r}
+```{r Kp_msm, cache = TRUE}
 Kp_msm <- msm_data2("Klebsiella pneumoniae")
 ```
 
@@ -1428,9 +1422,9 @@ Bootstrapping was used to obtain robust confidence intervals for transition inte
 
 Bootstrapping estimates (1000 samples, takes **42” in parallel** on 11 cores; if 1 core, takes **5 minutes**):
 
-```{r}
+```{r q_list, cache = TRUE}
 q_list <- boot.msm(Kp_msm_fit, function(x) qmatrix.msm(x)$estimates, 1000,
-                   cores = 11)
+                   cores = nb_cores)
 ```
 
 Reformating the output into an array of dimension 2, 2, and 1000 (i.e. 2 states and 1000 bootstrap samples):
@@ -1441,8 +1435,8 @@ q_array <- array(unlist(q_list), dim = c(2, 2, 1000))
 
 Or we can simply do this instead of the above two successive command lines (takes **42" in parallel** on 11 cores):
 
-```{r}
-q_array <- boot_msm(Kp_msm_fit, qmatrix.msm, 1000, cores = 11)
+```{r q_array, cache = TRUE}
+q_array <- boot_msm(Kp_msm_fit, qmatrix.msm, 1000, cores = nb_cores)
 ```
 
 The bootstrap estimate of the standard deviation:
@@ -1520,9 +1514,7 @@ Fit-test
 
 ```{r}
 fit_test <- bsm(state ~ days, USUBJID, Kp_msm_cov, covariates = list("1-2" = ~ age))
-
 summary(fit_test)
-
 str(summary(fit_test))
 ```
 
@@ -1534,7 +1526,7 @@ List of specific antibiotic agents to consider
 
 **(takes 10")**
 
-```{r}
+```{r Kp_uni_table_final, cache = TRUE}
 vars <- c("estimate","upper","lower","estimate_quartile", "otherCRE", "age", "GENDER",
           "Ab_history", "HealthcareHistory", "CORMOBIDITY", "CPD", "SEV_RENAL",
           "wardtype","hospitaltype", "problem_alcohol", "problem_drug",
@@ -1723,8 +1715,8 @@ Bootstrapping was used to obtain robust confidence intervals for transition inte
 
 Bootstrapping estimates (1000 samples, takes **42” in parallel** on 11 cores; if 1 core, takes **4 minutes**):
 
-```{r}
-q_array <- boot_msm(Ec_msm_fit, qmatrix.msm, 1000, cores = 11)
+```{r q_array2, cache = TRUE}
+q_array <- boot_msm(Ec_msm_fit, qmatrix.msm, 1000, cores = nb_cores)
 ```
 
 The bootstrap estimate of the standard deviation:
@@ -1799,9 +1791,9 @@ List of specific antibiotic agents to consider
 
 "Gentamicin", "Imipenem_cilastatin", "Levofloxacin","Linezolid", "Ceftizoxime", "Ciprofloxacin", "Metronidazole_IV", "Cefoperazone", "Amoxicillin_clavulanicAcid", "Ceftriaxone", "Doxycycline", "Amoxicillin", "Ceftazidime", "Metronidazole_oral", "Tinidazole_oral", "Cefotaxime", "Cefuroxime", "Amikacin", "Ticarcillin/acid clavulanic", "Piperacillin_tazobactam", "Cefotiam", "Moxifloxacin", "Ampicillin_sulbactam", "Cefepime", "Meropenem", "Vancomycin_IV", "Cefixime", "Spiramycin_metronidazole", "Azithromycin", "Ertapenem", "Ofloxacin", "Cefoxitin", "Tobramycin", "Cefazolin", "Cefpodoxime_proxetil", "Cefradin", "Cefmetazol", "Clarithromycin", "Cefamandol", "Tinidazole_IV", "Cefoperazon_sulbactam", "Cefoperazone_sulbactam", "Cefalexin", "Clindamycin", "Cefaclor", "Cloxacillin"
 
-**(takes 10'')**
+**(takes 10")**
 
-```{r}
+```{r Ec_uni_table_final, cache = TRUE}
 vars <- c("estimate","upper","lower","estimate_quartile", "otherCRE", "age", "GENDER",
           "Ab_history", "HealthcareHistory", "CORMOBIDITY", "CPD", "SEV_RENAL",
           "wardtype","hospitaltype", "problem_alcohol", "problem_drug",
