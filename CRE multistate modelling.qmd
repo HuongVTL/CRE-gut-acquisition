@@ -589,8 +589,6 @@ last_admissions <- ward_dates |>
 
 Computing and plotting the ward occupancies: Number of patients enrolled as a function of time for each ward. The red vertical line indicates the last enrollment.
 
-## HERE
-
 ```{r fig.height = 10.38, fig.width  = 8.3, purl = FALSE}
 #| fig-cap: "Number of patients enrolled as a function of time for each ward. The red
 #| vertical line indicates the last enrollment."
@@ -637,45 +635,42 @@ with(the_model, {
 
 ### Patient-level covariates
 
-Patient-level covariates to adjust for in the msm of CRE acqusition during hospitalization:
+Patient-level covariates to adjust for in the msm of CRE acqusition during
+hospitalization:
 
 ```{r}
-covariates_1 <- CRF |>    
+(covariates_1 <- CRF |>    
   extract2("ADM") |>    
   select(USUBJID, SITEID, YEAR_BIRTH, GENDER, ADMISSION_DATE, WARD_3, CORMOBIDITY,
          MI_HIS, CHF, PVD, CVD, DEMENTIA, CPD, CTD, PUD, MILD_LIVER, SEV_LIVER,
          HEMIPLEGIA, SEV_RENAL, starts_with("DIAB"), TUMOR_NOMETA, LEUKEMIA,
          LYMPHOMA,META_TUMOR, ANB_ADMISSION) |> 
-  mutate(
-    hospitaltype = ifelse(SITEID %in% c("010", "159"), "provincial", "district"),
-    age = 2025 - YEAR_BIRTH + 1,
-    Ab_history = ANB_ADMISSION %in% c(1, 4),                # 1: No; 4: Don't know
-    wardtype = as.factor(ifelse(WARD_3, "surgical", "medical/ID")),
-    across(GENDER, ~ c("male", "female")[as.integer(.x)]),
-    across(CORMOBIDITY, ~ .x > 1)) |>
-  select(-YEAR_BIRTH, -ANB_ADMISSION, -WARD_3)
-
-covariates_1
-
+  mutate(hospitaltype = ifelse(SITEID %in% c("010", "159"), "provincial", "district"),
+         age = 2025 - YEAR_BIRTH + 1,
+         Ab_history = ANB_ADMISSION %in% c(1, 4),                # 1: No; 4: Don't know
+         wardtype = as.factor(ifelse(WARD_3, "surgical", "medical/ID")),
+         across(GENDER, ~ c("male", "female")[as.integer(.x)]),
+         across(CORMOBIDITY, ~ .x > 1)) |>
+  select(-YEAR_BIRTH, -ANB_ADMISSION, -WARD_3))
 ```
 
 ```{r}
-covariates_2 <- CRF |>    
+(covariates_2 <- CRF |>    
   extract2("DEMO_HIS") |>    
   select(USUBJID, MARITAL, starts_with("JOB"), ADULT, CHILDREN, AMBULATORY, SMOKING,
          starts_with("ALCOHOL"), starts_with("DRUG")) |> 
   mutate(job = JOB_SPECIFY |>
-           case_match(c("Cán bộ công chức", "Cán bộ xã") ~ 1,
-                      c("Bảo vệ", "Cơ khí","Hộ lý", "Lái tàu thủy", "Lao động tự do",
-                        "Vệ sỹ") ~ 4,
-                      c("già", "Già", "Hết độ tuổi lao động") ~ 8,
-                      c("Ở nhà", "Tự do") ~ 9, .default = as.numeric(JOB)) |> 
-           case_match(6 ~ "farmer", 7 ~ "housewife", 8 ~ "retired",
-                      .default = "all_others"),
+           recode_values(c("Cán bộ công chức", "Cán bộ xã") ~ "1",
+                         c("Bảo vệ", "Cơ khí","Hộ lý", "Lái tàu thủy",
+                           "Lao động tự do", "Vệ sỹ") ~ "4",
+                         c("già", "Già", "Hết độ tuổi lao động") ~ "8",
+                         c("Ở nhà", "Tự do") ~ "9", default = JOB) |> 
+           recode_values("6" ~ "farmer", "7" ~ "housewife", "8" ~ "retired",
+                         default = "all_others"),
          householdsize = ADULT + CHILDREN,
-         smoking = case_match(SMOKING, "1" ~ "current smoker",
-                                       "2" ~ "former smoker",
-                                       .default = "all non-smokers"), 
+         smoking = recode_values(SMOKING, "1" ~ "current smoker",
+                                          "2" ~ "former smoker",
+                                          default = "all non-smokers"),
          children = CHILDREN > 0,
          married = MARITAL < 2,
          independent = AMBULATORY < 2,
@@ -685,9 +680,7 @@ covariates_2 <- CRF |>
          problem_drug = DRUG_CUTDOWN + DRUG_ANNOYED + 
            DRUG_GUILTY + DRUG_DRUG > 4) |> 
   select(-MARITAL, -starts_with("JOB"), -ADULT, -CHILDREN, -AMBULATORY, -SMOKING,
-         -starts_with("ALCOHOL"), -starts_with("DRUG"))
-
-covariates_2
+         -starts_with("ALCOHOL"), -starts_with("DRUG")))
 ```
 
 ```{r}
