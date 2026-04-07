@@ -124,7 +124,7 @@ if (length(to_install)) install.packages(to_install)
 
 invisible(sapply(required, library, character.only = TRUE))
 
-plan(multisession)
+#plan(multisession)
 ```
 
 ## General functions
@@ -168,30 +168,6 @@ binom_test <- function(x, n, ...) {
     magrittr::extract(c("estimate", "conf.int")) |> 
     unlist() |> 
     setNames(c("estimate", "lower", "upper"))
-}
-```
-
-It seems the output function from the `binom.test()` above could have issues, use the following instead:
-
-```{r}
-safe_binom_test <- function(x, n) {
-  if (is.na(x) || is.na(n) || n <= 0 || x < 0 || x > n) {
-    return(tibble(
-      estimate = NA_real_,
-      conf.low = NA_real_,
-      conf.high = NA_real_,
-      p.value = NA_real_
-    ))
-  }
-
-  bt <- binom.test(x, n)
-
-  tibble(
-    estimate = unname(bt$estimate),
-    conf.low = bt$conf.int[1],
-    conf.high = bt$conf.int[2],
-    p.value = bt$p.value
-  )
 }
 ```
 
@@ -1092,51 +1068,6 @@ proportion_CRE <- ward_dates |>
          Clopper_Pearson = map2(numerator, denominator, binom_test)) |> 
   unnest_wider(Clopper_Pearson)
 
-```
-
-To fix the issues with binom test, use the following:
-
-```{r}
-safe_binom_test <- function(x, n) {
-  if (is.na(x) || is.na(n) || n <= 0 || x < 0 || x > n) {
-    return(tibble(
-      estimate = NA_real_,
-      conf.low = NA_real_,
-      conf.high = NA_real_,
-      p.value = NA_real_
-    ))
-  }
-
-  bt <- binom.test(x, n)
-
-  tibble(
-    estimate = unname(bt$estimate),
-    conf.low = bt$conf.int[1],
-    conf.high = bt$conf.int[2],
-    p.value = bt$p.value
-  )
-}
-
-proportion_CRE <- ward_dates |>
-  group_by(ward) |>
-  arrange(.data$ADMISSION, .by_group = TRUE) |>
-  group_modify(~ ward_occupancy(.x)) |>
-  ungroup() |>
-  rename(denominator = occupancy) |>
-  left_join(numerator_df, by = c("ward", "date")) |>
-  mutate(
-    numerator = replace_na(numerator, 0L),
-    denominator = as.integer(round(denominator)),
-    numerator = as.integer(round(numerator))) |>
-  mutate(
-  bt = map2(
-      numerator, denominator,
-      ~ if (!is.na(.x) && !is.na(.y) && .y > 0 && .x >= 0 && .x <= .y) binom.test(.x, .y) else NULL)) |>
-  mutate(
-    estimate = map_dbl(bt, ~ if (is.null(.x)) NA_real_ else unname(.x$estimate)),
-    lower = map_dbl(bt, ~ if (is.null(.x)) NA_real_ else .x$conf.int[1]),
-    upper = map_dbl(bt, ~ if (is.null(.x)) NA_real_ else .x$conf.int[2])) |>
-  select(-bt)
 ```
 
 Proportion of enrolled patients that are CRE positive at admission as a function of time for each ward (takes **1.5”**):
