@@ -401,7 +401,7 @@ Loading the discharge dates for the patients who did not provide any sample at d
 
 ## CRF data
 
-Reading the data (it takes **1”**):
+Reading the data (it takes **1"**):
 
 ```{r}
 file <- paste0(path2data, CRF_file)
