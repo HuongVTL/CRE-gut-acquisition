@@ -793,16 +793,11 @@ abx_early <- CRF$ANT_ANB_HOSP_GRID |>
 Merging all `covariates_pt`
 
 ```{r}
-covariates_pt <- covariates_1 |>
-  left_join(covariates_2, by = "USUBJID")|>
-  left_join(covariates_3, by = "USUBJID")|>
-  left_join(covariates_4, by = "USUBJID")|>
-  left_join(AB_after_admission, by = "USUBJID")|>
-  left_join(abx_early, by = "USUBJID")
-
-
-covariates_pt
+(covariate_pt <- list(covariates_1, covariates_2, covariates_3, covariates_4,
+                     AB_after_admission, abx_early) |> 
+  reduce(left_join, by = "USUBJID"))
 ```
+
 
 ## MALDI-TOF data
 
@@ -914,22 +909,19 @@ prev_adm_disch <- prevalences_all |>
 The number of positive samples:
 
 ```{r}
-prev_adm_disch |> 
-  select(Identification_MALDITOF, starts_with("n"))
+select(prev_adm_disch, Identification_MALDITOF, starts_with("n"))
 ```
 
 Their proportion among positive samples:
 
 ```{r}
-prev_adm_disch |> 
-  select(Identification_MALDITOF, starts_with("% +"))
+select(prev_adm_disch, Identification_MALDITOF, starts_with("% +"))
 ```
 
 Their proportions among all samples:
 
 ```{r}
-prev_adm_disch |> 
-  select(Identification_MALDITOF, starts_with("% a"))
+select(prev_adm_disch, Identification_MALDITOF, starts_with("% a"))
 ```
 
 The list of bacteria absent at admission and present at discharge:
