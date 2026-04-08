@@ -14,17 +14,20 @@ Source: [60HN: CRE burden at admission and discharge](https://choisy.github.io/6
 
 ## Constants
 
-The path to the data folder:
+The paths to the data and cache folders:
 
 ```{r}
 if (Sys.getenv("USER") == "MarcChoisy") {
-  path2data <- paste0("~/Library/CloudStorage/",
-                      "OneDrive-OxfordUniversityClinicalResearchUnit/SharePoint/",
-                      "AMS Data Analysis and Modelling Team/CRE gut acquisition/data/")
-  #path2cache <- 
+  root <- "~/Library/CloudStorage/OneDrive-OxfordUniversityClinicalResearchUnit/"
+  path2data  <- paste0(root, "SharePoint",
+                       "/Hospital AMS Team/Manuscripts/60HN carriage/Data/")
+  path2cache <- paste0(root, "GitHub",
+                       "/HuongVTL/CRE-gut-acquisition/cache/")
 } else {
   path2data <- paste("C:/Users/huongvtl/OneDrive - Oxford University Clinical",
                      "Research Unit/60HN CRE transmission manuscript/")
+#### HUONG OIIIII!!!! CHANGE THE PATH TO YOUR CACHE FOLDER IF YOU WANT ################
+  path2cache <- paste0(path2data, "cache/")
 }
 ```
 
@@ -37,15 +40,13 @@ knitr::knit_hooks$set(
   })
 
 eps <- .8
-knitr::opts_chunk$set(cache.path = ,
+knitr::opts_chunk$set(cache.path = path2cache,
                       margin1    = TRUE,
                       fig.retina = 2,
                       fig.align  = "center",
                       fig.height = eps * 5, # default is 5
                       fig.width  = eps * 7) # default is 7 and maximum possible is 8.3
 ```
-
-~/Library/CloudStorage/OneDrive-OxfordUniversityClinicalResearchUnit/SharePoint/AMS Data Analysis and Modelling Team/CRE gut acquisition/data
 
 The names of the data files:
 
