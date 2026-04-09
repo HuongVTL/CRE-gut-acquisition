@@ -56,11 +56,6 @@ CRF_file <- "16-12-2025-_60HN_PATIENT_P1_Data.xls"
 MALDITOF_file <- "60HN_ID_MALDITOF_confirmation_20251128.xlsx"
 ```
 
-```{r}
-nb_cores <- parallel::detectCores() - 1
-#nb_cores <- 1
-```
-
 Numbers of minutes and seconds per day:
 
 ```{r}
@@ -145,9 +140,15 @@ if (length(to_install)) install.packages(to_install)
 invisible(sapply(required, library, character.only = TRUE))
 ```
 
+Number of cores to use for parallel calculations:
+
+```{r}
+nb_cores <- parallel::detectCores() - 1
+```
+
 ## General functions
 
-A function that pastes a vector of dates and a vector of times both in character format and returns a `dttm` vector:
+A function that pastes a vector of dates and a vector of times both in character format and returns a `dttm` vector:
 
 ```{r}
 as_datetime2 <- function(date, time) {
@@ -160,7 +161,7 @@ as_datetime2 <- function(date, time) {
 }
 ```
 
-A function that converts a column `col` of a data frame `x` into a list-column (assuming that all the other columns have the same values across rows):
+A function that converts a column `col` of a data frame `x` into a list-column (assuming that all the other columns have the same values across rows):
 
 ```{r}
 col2listcol <- function(x, col) {
@@ -171,13 +172,13 @@ col2listcol <- function(x, col) {
 }
 ```
 
-A tuning of the `hist()` function:
+A tuning of the `hist()` function:
 
 ```{r}
 hist2 <- function(x, ...) hist(x, floor(min(x)):ceiling(max(x)), main = NA, ...)
 ```
 
-A wrapper that formats the output of the `binom.test()` function:
+A wrapper that formats the output of the `binom.test()` function:
 
 ```{r}
 binom_test <- function(x, n, ...) {
@@ -189,7 +190,7 @@ binom_test <- function(x, n, ...) {
 }
 ```
 
-A tuning of the `polygon()` function:
+A tuning of the `polygon()` function:
 
 ```{r}
 polygon2 <- function(x, y1, y2, border = NA, ...) {
@@ -958,7 +959,7 @@ make_alluvial_data <- function(x) {
 }
 ```
 
-The following function is a wrapper around the above function and the the `alluvial3()` function that computes the table of changes and plot the alluvial plot for a given set of bacteria to consider:
+The following function is a wrapper around the above function and the the `alluvial3()` function that computes the table of changes and plot the alluvial plot for a given set of bacteria to consider:
 
 ```{r}
 plot_changes <- function(bacteria = "all") {
@@ -1003,7 +1004,7 @@ ward_dates |>
 par(opar)
 ```
 
-A function that plots the prevalence estimate `estimate` and lower and upper bounds `lower` and `upper` of the confidence interval from a data frame of a ward:
+A function that plots the prevalence estimate `estimate` and lower and upper bounds `lower` and `upper` of the confidence interval from a data frame of a ward:
 
 ```{r}
 plot_prevalence <- function(x) {
@@ -1018,7 +1019,7 @@ plot_prevalence <- function(x) {
 }
 ```
 
-Computing the proportions of CRE positives as a function of time for each ward (takes **1.5”**):
+Computing the proportions of CRE positives as a function of time for each ward (takes **1.5”**):
 
 ```{r}
 numerator_df <- ward_dates |> 
@@ -1127,7 +1128,7 @@ add_negatives <- function(x, y, id, time_point) {
 }
 ```
 
-A function that selects patients from `x` who have samples from at least 2 time points:
+A function that selects patients from `x` who have samples from at least 2 time points:
 
 ```{r}
 select2time_points <- function(x, id) {
