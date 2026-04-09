@@ -114,7 +114,7 @@ genitourinary_diseases <- c("N00", "N13.2", "N13.3", "N13.6", "N17", "N17.9", "N
 Antimicrobials:
 
 ```{r}
-cefoperazone <- c("Cefoperazol","Cefoperazole", "Cefoperazon", "Cefoperazone")
+cefoperazone <- c("Cefoperazol", "Cefoperazole", "Cefoperazon", "Cefoperazone")
 ampicill_sulb <- "Senitram"
 cefamandol <- c("Cefamandol", "Cefemandol")
 cefo_sulb <- "Vitabactam"
@@ -123,6 +123,7 @@ cefprozil <- "Cefprozil"
 cefradin <- "Cefradin"
 ceftizoxime <- c("Ceftizoxim", "Ceftizoxime", "Ceftizoxom", "Ceftrizoxim")
 cefmetazol <- "Cefmetazol"
+carbapenems <- c("Imipenem_cilastatin", "Meropenem", "Ertapenem", "Doripenem")
 ticarcillin_acid_clavulan <- c("Ticarcillin + Acid clavulanic",
                                "Ticarcillin + Clavulanic",
                                "Ticarcillin/acid clavulanic")
@@ -130,7 +131,7 @@ ticarcillin_acid_clavulan <- c("Ticarcillin + Acid clavulanic",
 
 ## Packages
 
-```{r}
+```{r message = FALSE}
 required <- c("readxl", "purrr", "dplyr", "lubridate", "magrittr", "tidyr", "msm",
               "rlang", "mgcv", "gratia", "alluvial", "parallel")
 
@@ -319,12 +320,12 @@ time_diff <- function(x) as.duration(diff(x))
 A function that extracts the estimations with 95% CI of the rate of colonization and decolonization per 100 patient days:
 
 ```{r}
-bsm_estimations <- function(x, event_names = c("colonization", "clearance")) {
-  out <- cbind(matrix(x$estimates.t, 2), x$ci)
-  rownames(out) <- event_names
-  colnames(out) <- c("estimate", "lower", "upper")
-  100 * out
-}
+#bsm_estimations <- function(x, event_names = c("colonization", "clearance")) {
+#  out <- cbind(matrix(x$estimates.t, 2), x$ci)
+#  rownames(out) <- event_names
+#  colnames(out) <- c("estimate", "lower", "upper")
+#  100 * out
+#}
 ```
 
 Tunings of the `alluvial()` function:
@@ -344,7 +345,7 @@ alluvial3 <- function(x, print = TRUE, ...) {
 The following function returns the hazard ratio of the covariates (with 95% confidence intervals) of an output of `msm()`:
 
 ```{r}
-HR <- function(x) summary(x)$hazard
+#HR <- function(x) summary(x)$hazard
 ```
 
 A function to extract summary data eg n/N
@@ -407,6 +408,13 @@ extract_hr_msm <- function(fit) {
 }
 ```
 
+A tuning of the `starts_with()` function:
+
+```{r}
+starts_with_c <- function(...) starts_with(..., ignore.case = FALSE)
+```
+
+
 ## Discharge dates
 
 Loading the discharge dates for the patients who did not provide any sample at discharge:
@@ -422,7 +430,7 @@ Loading the discharge dates for the patients who did not provide any sample at d
 
 Reading the data (it takes **1"**):
 
-```{r CRF, cache = TRUE}
+```{r CRF, cache = TRUE, warning = FALSE}
 file <- paste0(path2data, CRF_file)
 
 CRF <- file |>
@@ -470,12 +478,6 @@ The number of samples at discharge is:
 (nb_samples_discharge <- nb_samples_admission - nb_missing_samples)
 ```
 
-The number of samples at discharge is:
-
-```{r}
-(nb_samples_discharge <- nb_samples_admission - nb_missing_samples)
-```
-
 The total number of samples is:
 
 ```{r}
@@ -496,7 +498,7 @@ Generating the ward data:
 
 ```{r}
 (wards <- CRF$ADM |> 
-  mutate(across(starts_with("WARD"), as.numeric),
+  mutate(across(starts_with_c("WARD"), as.numeric),
          ward = paste0(SITEID, WARD_1, WARD_2, WARD_3)) |> 
   arrange(SITEID) |> 
   select(USUBJID, ward))
@@ -547,7 +549,7 @@ plot_occ <- function(x, y = NULL, ...) {
               c(first(occupancy),
                 rep(tail(head(occupancy, -1), -1), each = 2),
                 last(occupancy)), col = "grey")
-      })
+    })
   if (! is.null(y)) abline(v = y, col = "red")
 }
 ```
@@ -602,7 +604,7 @@ par(opar)
 
 ### Durations
 
-The distribution of the durations of stay in the wards: Distribution of time spent in the ward
+The distribution of the durations of stay in the wards:
 
 ```{r}
 ward_dates |> 
@@ -643,7 +645,7 @@ hospitalization:
   extract2("ADM") |>    
   select(USUBJID, SITEID, YEAR_BIRTH, GENDER, ADMISSION_DATE, WARD_3, CORMOBIDITY,
          MI_HIS, CHF, PVD, CVD, DEMENTIA, CPD, CTD, PUD, MILD_LIVER, SEV_LIVER,
-         HEMIPLEGIA, SEV_RENAL, starts_with("DIAB"), TUMOR_NOMETA, LEUKEMIA,
+         HEMIPLEGIA, SEV_RENAL, starts_with_c("DIAB"), TUMOR_NOMETA, LEUKEMIA,
          LYMPHOMA,META_TUMOR, ANB_ADMISSION) |> 
   mutate(hospitaltype = ifelse(SITEID %in% c("010", "159"), "provincial", "district"),
          age = 2025 - YEAR_BIRTH + 1,
@@ -651,20 +653,21 @@ hospitalization:
          wardtype = as.factor(ifelse(WARD_3, "surgical", "medical/ID")),
          across(GENDER, ~ c("male", "female")[as.integer(.x)]),
          across(CORMOBIDITY, ~ .x > 1)) |>
-  select(-YEAR_BIRTH, -ANB_ADMISSION, -WARD_3))
+  select(-c(YEAR_BIRTH, ANB_ADMISSION, WARD_3)))
 ```
 
 ```{r}
 (covariates_2 <- CRF |>    
   extract2("DEMO_HIS") |>    
-  select(USUBJID, MARITAL, starts_with("JOB"), ADULT, CHILDREN, AMBULATORY, SMOKING,
-         starts_with("ALCOHOL"), starts_with("DRUG")) |> 
+  select(USUBJID, MARITAL, starts_with_c("JOB"), ADULT, CHILDREN, AMBULATORY, SMOKING,
+         starts_with_c("ALCOHOL"), starts_with_c("DRUG")) |> 
   mutate(job = JOB_SPECIFY |>
-           recode_values(c("Cán bộ công chức", "Cán bộ xã") ~ "1",
+           recode_values(c("Cán bộ công chức", "Cán bộ xã")      ~ "1",
                          c("Bảo vệ", "Cơ khí","Hộ lý", "Lái tàu thủy",
-                           "Lao động tự do", "Vệ sỹ") ~ "4",
+                           "Lao động tự do", "Vệ sỹ")            ~ "4",
                          c("già", "Già", "Hết độ tuổi lao động") ~ "8",
-                         c("Ở nhà", "Tự do") ~ "9", default = JOB) |> 
+                         c("Ở nhà", "Tự do")                     ~ "9",
+                         default = JOB) |> 
            recode_values("6" ~ "farmer", "7" ~ "housewife", "8" ~ "retired",
                          default = "all_others"),
          householdsize = ADULT + CHILDREN,
@@ -674,13 +677,13 @@ hospitalization:
          children = CHILDREN > 0,
          married = MARITAL < 2,
          independent = AMBULATORY < 2,
-         across(starts_with(c("ALCOHOL", "DRUG")), as.integer),
+         across(starts_with_c(c("ALCOHOL", "DRUG")), as.integer),
          problem_alcohol = ALCOHOL_CUTDOWN + ALCOHOL_ANNOYED + ALCOHOL_GUILTY +
            ALCOHOL_DRUG > 4,
          problem_drug = DRUG_CUTDOWN + DRUG_ANNOYED + 
            DRUG_GUILTY + DRUG_DRUG > 4) |> 
-  select(-MARITAL, -starts_with("JOB"), -ADULT, -CHILDREN, -AMBULATORY, -SMOKING,
-         -starts_with("ALCOHOL"), -starts_with("DRUG")))
+  select(-c(MARITAL, starts_with_c("JOB"), ADULT, CHILDREN, AMBULATORY, SMOKING,
+            starts_with_c("ALCOHOL"), starts_with_c("DRUG"))))
 ```
 
 ```{r}
@@ -699,12 +702,12 @@ covariates_4 <- CRF |>
   extract2("DIS") |>    
   select(USUBJID, DISCHARGE, FINAL_DIAG_ICD10) |> 
   mutate(ICDGroup = recode_values(FINAL_DIAG_ICD10,
-                                  id_intestinal ~ "ID (Intestinal)",
-                                  id_other ~ "ID (Other)",
-                                  neoplasms ~ "Neoplasms",
-                                  circulatory_diseases ~ "Circulatory diseases",
-                                  respiratory_diseases ~ "Respiratory diseases",
-                                  digestive_diseases ~ "Digestive diseases",
+                                  id_intestinal          ~ "ID (Intestinal)",
+                                  id_other               ~ "ID (Other)",
+                                  neoplasms              ~ "Neoplasms",
+                                  circulatory_diseases   ~ "Circulatory diseases",
+                                  respiratory_diseases   ~ "Respiratory diseases",
+                                  digestive_diseases     ~ "Digestive diseases",
                                   genitourinary_diseases ~ "Genitourinary diseases",
                                   default = "Other"))|> 
   select(-FINAL_DIAG_ICD10)
@@ -713,7 +716,7 @@ covariates_4 <- CRF |>
 Antibiotic use during hospital stay
 
 ```{r}
-AB_after_admission <- CRF |>    
+ANT_ANB_HOSP_GRID_recoded <- CRF |>    
   extract2("ANT_ANB_HOSP_GRID") |> 
   select(USUBJID, ANB_HOSP_NAME, ANB_OTHER_SPEC, ANB_HOSP_START_DATE,
          ANB_HOSP_END_DATE) |> 
@@ -728,13 +731,21 @@ AB_after_admission <- CRF |>
                              ceftizoxime               ~ "Ceftizoxime",
                              cefmetazol                ~ "Cefmetazol",
                              ticarcillin_acid_clavulan ~ "Ticarcillin/acid clavulanic",
-                             default = ANB_HOSP_NAME),
-         DOT = as.numeric((ANB_HOSP_END_DATE - ANB_HOSP_START_DATE) / spd + 1)) |> 
+                             default = ANB_HOSP_NAME))
+```
+
+```{r}
+AB_after_admission <- ANT_ANB_HOSP_GRID_recoded |> 
+  mutate(DOT = as.numeric((ANB_HOSP_END_DATE - ANB_HOSP_START_DATE) / spd + 1)) |> 
   group_by(USUBJID, agent) |> 
-  summarise(DOT = sum(DOT, na.rm=TRUE), .groups = "drop") |> 
+  summarise(DOT = sum(DOT, na.rm = TRUE), .groups = "drop") |> 
   pivot_wider(names_from = agent, values_from = DOT, values_fill = 0) |> 
   mutate(across(everything(), ~ replace_na(.x, 0)),
          DOT = rowSums(across(where(is.numeric))))
+```
+
+```{r}
+AB_after_admission
 ```
 
 Early antibiotic exposure during hospital stay
@@ -742,50 +753,34 @@ Early antibiotic exposure during hospital stay
 ```{R}
 # choose early window
 window_days <- 3   # 3 calendar days including admission day
-# use 2 for a tighter "early" exposure
-
-carbapenems <- c("Imipenem_cilastatin", "Meropenem", "Ertapenem", "Doripenem")
+                   # use 2 for a tighter "early" exposure
 
 Admission_date <- CRF |>    
   extract2("ADM") |>    
   distinct(USUBJID, ADMISSION_DATE)
 
-abx_early <- CRF$ANT_ANB_HOSP_GRID |>
-  select(USUBJID, ANB_HOSP_NAME, ANB_OTHER_SPEC, ANB_HOSP_START_DATE,
-         ANB_HOSP_END_DATE) |>
+abx_early <- ANT_ANB_HOSP_GRID_recoded |> 
   left_join(Admission_date, by = "USUBJID") |>
   filter_out(when_any(is.na(ADMISSION_DATE), is.na(ANB_HOSP_START_DATE),
                       is.na(ANB_HOSP_END_DATE))) |> 
-  mutate(agent = recode_values(ANB_OTHER_SPEC,
-                             cefoperazone ~ "Cefoperazone",
-                             ampicill_sulb ~ "Ampicillin_sulbactam",
-                             cefamandol ~ "Cefamandol",
-                             cefo_sulb ~ "Cefoperazon_sulbactam",
-                             cefazolin ~ "Cefazolin",
-                             cefprozil ~ "Cefprozil",
-                             cefradin ~ "Cefradin",
-                             ceftizoxime ~ "Ceftizoxime",
-                             cefmetazol ~ "Cefmetazol",
-                             ticarcillin_acid_clavulan ~ "Ticarcillin_acid_clavulanic",
-                             default = ANB_HOSP_NAME),
-         win_start = ADMISSION_DATE,
-         win_end   = ADMISSION_DATE + (window_days - 1L),
+  mutate(win_start = ADMISSION_DATE,
+         win_end   = ADMISSION_DATE + days(window_days - 1L),
          overlap_start = pmax(ANB_HOSP_START_DATE, win_start),
-         overlap_end   = pmin(ANB_HOSP_END_DATE, win_end)) |>
+         overlap_end   = pmin(ANB_HOSP_END_DATE, win_end)) |> 
   filter_out(overlap_end < overlap_start) |>
-  mutate(day = map2(overlap_start, overlap_end, seq.Date, by = "day")) |>
+  mutate(day = map2(overlap_start, overlap_end, seq, by = "day")) |>
   unnest(day) |>
   distinct(USUBJID, day, agent, .keep_all = TRUE) |>
   mutate(carbapenem = agent %in% carbapenems) |>
   group_by(USUBJID) |>
-  summarise(admission_date   = first(as.Date(ADMISSION_DATE)),
-            early_any_abx    = n() > 0,
+  summarise(admission_date   = first(ADMISSION_DATE),
             early_DOT        = n(),
+            early_any_abx    = early_DOT > 0,
             early_carb_DOT   = sum(carbapenem),
-            first_abx_day    = min(day),
-            .groups = "drop") |>
-  mutate(days_to_first_abx = as.integer(first_abx_day - admission_date)) |>
-  select(-admission_date, -first_abx_day)
+            first_abx_day    = min(day), .groups = "drop") |>
+  mutate(days_to_first_abx = interval(admission_date, first_abx_day) |>
+           time_length("days")) |>
+  select(-c(admission_date, first_abx_day))
 ```
 
 Merging all `covariates_pt`
@@ -983,6 +978,8 @@ plot_changes()
 plot_changes("Escherichia coli")
 plot_changes("Klebsiella pneumoniae")
 ```
+
+## CRE exposure
 
 ### All CRE
 
@@ -1258,6 +1255,29 @@ add_covariates_pt <- function(x) left_join(x, covariates_pt, "USUBJID")
 
 This function relies on the `covariates_pt` data frame generated in the section [Section 5.](https://choisy.github.io/60HN/analysis.html#sec-wards)5.
 
+A function that adds all co-variables:
+
+```{r}
+add_all_covariables <- function(df, bug) {
+  df |>
+    add_other_CRE_at_admission(bug) |> 
+    add_ward() |> 
+    add_CRE_prevalence_in_ward() |>
+    mutate(estimate_log = log1p(estimate),
+           estimate_med = estimate > median(estimate),
+           estimate_quartile = cut(estimate,
+                                   breaks = quantile(estimate), 
+                                   probs = c(0, 1 / 3, 2 / 3, 1),
+                                   include.lowest = TRUE)) |> 
+    add_covariates_pt() |>
+    mutate(early_any_abx  = replace_na(early_any_abx, FALSE),
+           DOT_bin = DOT > 0,
+           DOT_5 = DOT / 5,
+           across(c(early_DOT, early_carb_DOT, DOT), ~ tidyr::replace_na(.x, 0)))
+}
+```
+
+
 ## *K. pneumoniae*
 
 ### Preparing the data
@@ -1316,24 +1336,23 @@ Kp_msm <- msm_data2("Klebsiella pneumoniae")
 Adding covariates:
 
 ```{r}
-(Kp_msm_cov <- Kp_msm |> 
-   add_other_CRE_at_admission("Klebsiella pneumoniae") |> 
-   add_ward() |> 
-   add_CRE_prevalence_in_ward() |>
-   mutate(estimate_log = log1p(estimate),
-          estimate_med = estimate > median(estimate),
-          estimate_quartile = cut(estimate,
-                                  breaks = quantile(estimate), 
-                                  probs = c(0, 1/3, 2/3, 1),
-                                  include.lowest = TRUE)) |> 
-   add_covariates_pt() |>
-   mutate(early_any_abx  = replace_na(early_any_abx, FALSE),
-          early_DOT = tidyr::replace_na(early_DOT, 0),
-          early_carb_DOT = tidyr::replace_na(early_carb_DOT, 0),
-          DOT = tidyr::replace_na(DOT, 0),
-          DOT_bin = DOT > 0,
-          DOT_5 = DOT/5))
+#(Kp_msm_cov <- Kp_msm |> 
+#   add_other_CRE_at_admission("Klebsiella pneumoniae") |> 
+#   add_ward() |> 
+#   add_CRE_prevalence_in_ward() |>
+#   mutate(estimate_log = log1p(estimate),
+#          estimate_med = estimate > median(estimate),
+#          estimate_quartile = cut(estimate,
+#                                  breaks = quantile(estimate), 
+#                                  probs = c(0, 1 / 3, 2 / 3, 1),
+#                                  include.lowest = TRUE)) |> 
+#   add_covariates_pt() |>
+#   mutate(early_any_abx  = replace_na(early_any_abx, FALSE),
+#          DOT_bin = DOT > 0,
+#          DOT_5 = DOT / 5,
+#          across(c(early_DOT, early_carb_DOT, DOT), ~ tidyr::replace_na(.x, 0))))
 
+Kp_msm_cov <- add_all_covariables(Kp_msm, "Klebsiella pneumoniae")
 sum(is.na(AB_after_admission$DOT))
 sum(is.na(Kp_msm_cov$DOT))
 ```
@@ -1353,13 +1372,15 @@ table(Kp_msm_cov$state[Kp_msm_cov$days > 0])   # discharge
 
 We defined a two-state continuous-time multistate model with the following states:
 
-State 1: No carriage of CRE
-State 2: Carriage of CRE
+* State 1: No carriage of CRE
+
+* State 2: Carriage of CRE
 
 The following transitions were allowed:
 
-1 -> 2: Acquisition of CRE carriage
-2 -> 1: Clearance of CRE carriage
+* 1 -> 2: Acquisition of CRE carriage
+
+* 2 -> 1: Clearance of CRE carriage
 
 Patient states were observed at discrete time points (admission and discharge), and transitions between states were not observed continuously, resulting in interval-censored data. The underlying process was assumed to follow a time-homogeneous continuous-time Markov model.
 
@@ -1522,54 +1543,97 @@ str(summary(fit_test))
 
 Univariable exploration
 
-List of specific antibiotic agents to consider
+The list of variables to use in uni-variable models:
 
-"Gentamicin", "Imipenem_cilastatin", "Levofloxacin","Linezolid", "Ceftizoxime", "Ciprofloxacin", "Metronidazole_IV", "Cefoperazone", "Amoxicillin_clavulanicAcid", "Ceftriaxone", "Doxycycline", "Amoxicillin", "Ceftazidime", "Metronidazole_oral", "Tinidazole_oral", "Cefotaxime", "Cefuroxime", "Amikacin", "Ticarcillin/acid clavulanic", "Piperacillin_tazobactam", "Cefotiam", "Moxifloxacin", "Ampicillin_sulbactam", "Cefepime", "Meropenem", "Vancomycin_IV", "Cefixime", "Spiramycin_metronidazole", "Azithromycin", "Ertapenem", "Ofloxacin", "Cefoxitin", "Tobramycin", "Cefazolin", "Cefpodoxime_proxetil", "Cefradin", "Cefmetazol", "Clarithromycin", "Cefamandol", "Tinidazole_IV", "Cefoperazon_sulbactam", "Cefoperazone_sulbactam", "Cefalexin", "Clindamycin", "Cefaclor", "Cloxacillin",
-
-**(takes 10")**
-
-```{r Kp_uni_table_final, cache = TRUE}
-vars <- c("estimate","upper","lower","estimate_quartile", "otherCRE", "age", "GENDER",
-          "Ab_history", "HealthcareHistory", "CORMOBIDITY", "CPD", "SEV_RENAL",
-          "wardtype","hospitaltype", "problem_alcohol", "problem_drug",
+```{r}
+vars <- c("estimate", "upper", "lower", "estimate_quartile", "otherCRE", "age",
+          "GENDER", "Ab_history", "HealthcareHistory", "CORMOBIDITY", "CPD",
+          "SEV_RENAL", "wardtype", "hospitaltype", "problem_alcohol", "problem_drug",
           "MedicationHistory", "smoking", "children", "married", "householdsize",
-          "job", "early_any_abx","early_DOT", "DOT", "DOT_bin", "DOT_5",
-          "Amoxicillin_clavulanicAcid","Cefoperazone", "Ciprofloxacin", "ICDGroup")
+          "job", "early_any_abx", "early_DOT", "DOT", "DOT_bin", "DOT_5",
+          "Amoxicillin_clavulanicAcid", "Cefoperazone", "Ciprofloxacin", "ICDGroup")
+```
 
-# run univariable models
+The function that runs an uni-variable model:
 
-results_list <- lapply(vars, function(v) {
+```{r}
+univariable_model <- function(v) {
   fit <- try(bsm(state ~ days, USUBJID, Kp_msm_cov,
-                 covariates = list("1-2" = as.formula(paste0("~", v)))), silent = TRUE)
-  
-  # skip failed models
+                 covariates = list("1-2" = reformulate(v))), silent = TRUE)
+# skip failed models:
   if (inherits(fit, "try-error")) return(NULL)
   res <- extract_hr_msm(fit)
   if (is.null(res)) return(NULL)
   res$variable <- v
   res
-})
+}
+```
 
-# combine results
-Kp_uni_table <- bind_rows(results_list)
+Running uni-variable models **(takes 10")**:
 
-# Add summary numbers and %
-Kp_pt <- Kp_msm_cov |>
-  group_by(USUBJID) |>
-  slice(1) |>
-  ungroup()
+```{r Kp_uni_table_final, cache = TRUE}
+Kp_uni_table <- vars |> 
+  set_names() |>
+  map_dfr(univariable_model, .id = "variable")
 
-nN_list <- lapply(vars, get_nN, data = Kp_pt)
-nN_table <- bind_rows(nN_list)
+nN_table <- Kp_msm_cov |> 
+  filter(days == 0) |> 
+  map_dfr(vars, get_nN, data = _)
 
-Kp_uni_table_final <- Kp_uni_table |>
-  left_join(nN_table, by = "variable") |>
-  mutate(n_pct = ifelse(is.na(n), NA, paste0(n, "/", N, " (", round(pct, 1), "%)")),
-         significant = ifelse(lower > 1 | upper < 1, "Yes", "No"))
+# The code below cannot work because the values of the variable "variable" in the two
+# data frames Kp_uni_table and nN_table are not the same!
 
-write.csv(Kp_uni_table_final, "Kp_uni_table_final.csv", row.names = FALSE)
+#Kp_uni_table_final <- Kp_uni_table |>
+#  left_join(nN_table, by = "variable") |>
+#  mutate(n_pct = ifelse(is.na(n), NA, paste0(n, "/", N, " (", round(pct, 1), "%)")),
+#         significant = ifelse(lower > 1 | upper < 1, "Yes", "No"))
+#
+#write.csv(Kp_uni_table_final, "Kp_uni_table_final.csv", row.names = FALSE)
+#
+#Kp_uni_table_final
+```
 
-Kp_uni_table_final
+```{r essai2}
+data <- Kp_msm_cov |> 
+  filter(days == 0)
+
+var <- vars[2]
+
+data[, vars]
+```
+
+
+```{r essai}
+get_nN <- function(var, data) {
+  x <- data[[var]]
+  
+# binary (logical or 0/1):
+  if (is.logical(x) || (is.numeric(x) && all(x %in% c(0, 1, NA)))) {
+    n <- sum(x == TRUE, na.rm = TRUE)
+    N <- sum(!is.na(x))
+    return(data.frame(
+      variable = paste0(var, "TRUE"),
+      n = n,
+      N = N,
+      pct = n / N * 100
+    ))
+  }
+  
+# factor / character
+  if (is.factor(x) || is.character(x)) {
+    tab <- table(x, useNA = "no")
+    N <- sum(tab)
+    return(data.frame(
+      variable = paste0(var, names(tab)),
+      n = as.numeric(tab),
+      N = N,
+      pct = as.numeric(tab) / N * 100
+    ))
+  }
+  
+# continuous -> return NULL (handled separately)
+  return(NULL)
+}
 ```
 
 Multivariable model
@@ -1632,24 +1696,30 @@ Making the dataset for the multistate modelling:
 Adding covariates:
 
 ```{r}
-(Ec_msm_cov <- Ec_msm |>     
-    add_other_CRE_at_admission("Escherichia coli") |>     
-    add_ward() |>     
-    add_CRE_prevalence_in_ward()|>    
-    mutate(estimate_log = log1p(estimate),           
-           estimate_med = estimate > median(estimate),           
-           estimate_quartile = cut(estimate,                                  
-                                   breaks = quantile(estimate),
-                                   probs = c(0, 1/3, 2/3, 1)),           
-           include.lowest = TRUE)|>     
-    add_covariates_pt()|>     
-    mutate(early_any_abx  = replace_na(early_any_abx, FALSE),            
-           early_DOT = tidyr::replace_na(early_DOT, 0),            
-           early_carb_DOT = tidyr::replace_na(early_carb_DOT, 0),            
-           DOT = tidyr::replace_na(DOT, 0),            
-           DOT_bin = DOT > 0,            
-           DOT_5 = DOT/5,
-           time_interval = factor(ifelse(days <= 7, "early", "late"))))
+#(Ec_msm_cov <- Ec_msm |>     
+#    add_other_CRE_at_admission("Escherichia coli") |>     
+#    add_ward() |>     
+#    add_CRE_prevalence_in_ward()|>    
+#    mutate(estimate_log = log1p(estimate),           
+#           estimate_med = estimate > median(estimate),           
+#           estimate_quartile = cut(estimate,                                  
+#                                   breaks = quantile(estimate),
+#                                   probs = c(0, 1/3, 2/3, 1)),           
+#           include.lowest = TRUE)|>     
+#    add_covariates_pt()|>     
+#    mutate(early_any_abx  = replace_na(early_any_abx, FALSE),            
+#           early_DOT = tidyr::replace_na(early_DOT, 0),            
+#           early_carb_DOT = tidyr::replace_na(early_carb_DOT, 0),            
+#           DOT = tidyr::replace_na(DOT, 0),            
+#           DOT_bin = DOT > 0,            
+#           DOT_5 = DOT/5,
+#           time_interval = factor(ifelse(days <= 7, "early", "late"))))
+```
+
+```{r}
+(Ec_msm_cov <- Ec_msm |>
+  add_all_covariables("Escherichia coli") |> 
+  mutate(time_interval = factor(ifelse(days <= 7, "early", "late"))))
 ```
 
 Check number of events in each state and state transitions, and crude count at admission and discharge
@@ -1789,20 +1859,9 @@ str(summary(fit_test))
 
 Univariable exploration
 
-List of specific antibiotic agents to consider
-
-"Gentamicin", "Imipenem_cilastatin", "Levofloxacin","Linezolid", "Ceftizoxime", "Ciprofloxacin", "Metronidazole_IV", "Cefoperazone", "Amoxicillin_clavulanicAcid", "Ceftriaxone", "Doxycycline", "Amoxicillin", "Ceftazidime", "Metronidazole_oral", "Tinidazole_oral", "Cefotaxime", "Cefuroxime", "Amikacin", "Ticarcillin/acid clavulanic", "Piperacillin_tazobactam", "Cefotiam", "Moxifloxacin", "Ampicillin_sulbactam", "Cefepime", "Meropenem", "Vancomycin_IV", "Cefixime", "Spiramycin_metronidazole", "Azithromycin", "Ertapenem", "Ofloxacin", "Cefoxitin", "Tobramycin", "Cefazolin", "Cefpodoxime_proxetil", "Cefradin", "Cefmetazol", "Clarithromycin", "Cefamandol", "Tinidazole_IV", "Cefoperazon_sulbactam", "Cefoperazone_sulbactam", "Cefalexin", "Clindamycin", "Cefaclor", "Cloxacillin"
-
 **(takes 10")**
 
 ```{r Ec_uni_table_final, cache = TRUE}
-vars <- c("estimate","upper","lower","estimate_quartile", "otherCRE", "age", "GENDER",
-          "Ab_history", "HealthcareHistory", "CORMOBIDITY", "CPD", "SEV_RENAL",
-          "wardtype","hospitaltype", "problem_alcohol", "problem_drug",
-          "MedicationHistory", "smoking", "children", "married", "householdsize",
-          "job", "early_any_abx","early_DOT", "DOT", "DOT_bin", "DOT_5",
-          "Amoxicillin_clavulanicAcid","Cefoperazone", "Ciprofloxacin", "ICDGroup")
-
 # run univariable models
 
 results_list <- lapply(vars, function(v) {
