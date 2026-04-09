@@ -1597,11 +1597,12 @@ nN_table <- Kp_msm_cov |>
 data <- Kp_msm_cov |> 
   filter(days == 0)
 
-var <- vars[2]
-
 data[, vars]
+
+var <- "otherCRE"
 ```
 
+## HERE
 
 ```{r essai}
 get_nN <- function(var, data) {
@@ -1621,20 +1622,35 @@ get_nN <- function(var, data) {
   
 # factor / character
   if (is.factor(x) || is.character(x)) {
-    tab <- table(x, useNA = "no")
-    N <- sum(tab)
-    return(data.frame(
-      variable = paste0(var, names(tab)),
-      n = as.numeric(tab),
-      N = N,
-      pct = as.numeric(tab) / N * 100
-    ))
+    data |> 
+      group_by(.data[[var]]) |> 
+      tally() |> 
+      rename_with(~ "variable", .cols = 1) |> 
+      mutate(across(variable, ~ paste0(var, .x)),
+             N   = sum(n),
+             pct = n / N) |> 
+      return()
   }
   
 # continuous -> return NULL (handled separately)
   return(NULL)
 }
 ```
+
+```{r}
+f <- function(var = "estimate_quartile") {
+data |> 
+  group_by(.data[[var]]) |> 
+  tally() |> 
+  rename_with(~ "variable", .cols = 1) |> 
+  mutate(across(variable, ~ paste0(var, .x)),
+         N   = sum(n),
+         pct = n / N)  
+}
+
+f()
+```
+
 
 Multivariable model
 
