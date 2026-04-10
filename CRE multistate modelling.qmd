@@ -351,35 +351,55 @@ The following function returns the hazard ratio of the covariates (with 95% conf
 A function to extract summary data eg n/N
 
 ```{r}
-get_nN <- function(var, data) {
-  x <- data[[var]]
-  
-# binary (logical or 0/1):
-  if (is.logical(x) || (is.numeric(x) && all(x %in% c(0, 1, NA)))) {
-    n <- sum(x == TRUE, na.rm = TRUE)
-    N <- sum(!is.na(x))
-    return(data.frame(
-      variable = paste0(var, "TRUE"),
-      n = n,
-      N = N,
-      pct = n / N * 100
-    ))
-  }
-  
-# factor / character
-  if (is.factor(x) || is.character(x)) {
-    tab <- table(x, useNA = "no")
-    N <- sum(tab)
-    return(data.frame(
-      variable = paste0(var, names(tab)),
-      n = as.numeric(tab),
-      N = N,
-      pct = as.numeric(tab) / N * 100
-    ))
-  }
-  
-# continuous -> return NULL (handled separately)
-  return(NULL)
+#get_nN <- function(var, data) {
+#  x <- data[[var]]
+#  
+## binary (logical or 0/1):
+#  if (is.logical(x) || (is.numeric(x) && all(x %in% c(0, 1, NA)))) {
+#    n <- sum(x == TRUE, na.rm = TRUE)
+#    N <- sum(!is.na(x))
+#    return(data.frame(
+#      variable = paste0(var, "TRUE"),
+#      n = n,
+#      N = N,
+#      pct = n / N * 100
+#    ))
+#  }
+#  
+## factor / character
+#  if (is.factor(x) || is.character(x)) {
+#    tab <- table(x, useNA = "no")
+#    N <- sum(tab)
+#    return(data.frame(
+#      variable = paste0(var, names(tab)),
+#      n = as.numeric(tab),
+#      N = N,
+#      pct = as.numeric(tab) / N * 100
+#    ))
+#  }
+#  
+## continuous -> return NULL (handled separately)
+#  return(NULL)
+#}
+```
+
+```{r}
+get_nN_1 <- function(x) {
+  column <- unlist(x)
+  if (! (is.logical(column) | is.factor(column) | is.character(column))) return(NULL)
+  x |> 
+    group_by(across(1)) |> 
+    tally() |> 
+    rename_with(~ "variable", .cols = 1) |> 
+    mutate(across(variable, ~ paste0(var, "_", .x)),
+           N   = sum(n),
+           pct = n / N)
+}
+
+get_nN <- function(df) {
+  df |> 
+    imap(~ tibble(!!.y := .x)) |>
+    map_dfr(get_nN_1)
 }
 ```
 
@@ -1557,8 +1577,8 @@ vars <- c("estimate", "upper", "lower", "estimate_quartile", "otherCRE", "age",
 The function that runs an uni-variable model:
 
 ```{r}
-univariable_model <- function(v) {
-  fit <- try(bsm(state ~ days, USUBJID, Kp_msm_cov,
+univariable_model <- function(v, data) {
+  fit <- try(bsm(state ~ days, USUBJID, data,
                  covariates = list("1-2" = reformulate(v))), silent = TRUE)
 # skip failed models:
   if (inherits(fit, "try-error")) return(NULL)
@@ -1574,11 +1594,12 @@ Running uni-variable models **(takes 10")**:
 ```{r Kp_uni_table_final, cache = TRUE}
 Kp_uni_table <- vars |> 
   set_names() |>
-  map_dfr(univariable_model, .id = "variable")
+  map_dfr(univariable_model, data = Kp_msm_cov, .id = "variable")
 
 nN_table <- Kp_msm_cov |> 
   filter(days == 0) |> 
-  map_dfr(vars, get_nN, data = _)
+  select(!! vars) |>
+  get_nN()
 
 # The code below cannot work because the values of the variable "variable" in the two
 # data frames Kp_uni_table and nN_table are not the same!
@@ -1591,64 +1612,6 @@ nN_table <- Kp_msm_cov |>
 #write.csv(Kp_uni_table_final, "Kp_uni_table_final.csv", row.names = FALSE)
 #
 #Kp_uni_table_final
-```
-
-```{r essai2}
-data <- Kp_msm_cov |> 
-  filter(days == 0)
-
-data[, vars]
-
-var <- "otherCRE"
-```
-
-## HERE
-
-```{r essai}
-get_nN <- function(var, data) {
-  x <- data[[var]]
-  
-# binary (logical or 0/1):
-  if (is.logical(x) || (is.numeric(x) && all(x %in% c(0, 1, NA)))) {
-    n <- sum(x == TRUE, na.rm = TRUE)
-    N <- sum(!is.na(x))
-    return(data.frame(
-      variable = paste0(var, "TRUE"),
-      n = n,
-      N = N,
-      pct = n / N * 100
-    ))
-  }
-  
-# factor / character
-  if (is.factor(x) || is.character(x)) {
-    data |> 
-      group_by(.data[[var]]) |> 
-      tally() |> 
-      rename_with(~ "variable", .cols = 1) |> 
-      mutate(across(variable, ~ paste0(var, .x)),
-             N   = sum(n),
-             pct = n / N) |> 
-      return()
-  }
-  
-# continuous -> return NULL (handled separately)
-  return(NULL)
-}
-```
-
-```{r}
-f <- function(var = "estimate_quartile") {
-data |> 
-  group_by(.data[[var]]) |> 
-  tally() |> 
-  rename_with(~ "variable", .cols = 1) |> 
-  mutate(across(variable, ~ paste0(var, .x)),
-         N   = sum(n),
-         pct = n / N)  
-}
-
-f()
 ```
 
 
@@ -1878,40 +1841,26 @@ Univariable exploration
 **(takes 10")**
 
 ```{r Ec_uni_table_final, cache = TRUE}
-# run univariable models
+Ec_uni_table <- vars |> 
+  set_names() |>
+  map_dfr(univariable_model, data = Ec_msm_cov, .id = "variable")
 
-results_list <- lapply(vars, function(v) {
-  fit <- try(bsm(state ~ days, USUBJID, Ec_msm_cov,
-                 covariates = list("1-2" = as.formula(paste0("~", v)))), silent = TRUE)
-  
-  # skip failed models
-  if (inherits(fit, "try-error")) return(NULL)
-  res <- extract_hr_msm(fit)
-  if (is.null(res)) return(NULL)
-  res$variable <- v
-  res
-})
+nN_table <- Ec_msm_cov |> 
+  filter(days == 0) |> 
+  select(!! vars) |>
+  get_nN()
 
-# combine results
-Ec_uni_table <- bind_rows(results_list)
+# The code below cannot work because the values of the variable "variable" in the two
+# data frames Kp_uni_table and nN_table are not the same!
 
-# Add summary numbers and %
-Ec_pt <- Ec_msm_cov |>
-  group_by(USUBJID) |>
-  slice(1) |>
-  ungroup()
-
-nN_list <- lapply(vars, get_nN, data = Ec_pt)
-nN_table <- bind_rows(nN_list)
-
-Ec_uni_table_final <- Ec_uni_table |>
-  left_join(nN_table, by = "variable") |>
-  mutate(n_pct = ifelse(is.na(n), NA, paste0(n, "/", N, " (", round(pct, 1), "%)")),
-         significant = ifelse(lower > 1 | upper < 1, "Yes", "No"))
-
-write.csv(Ec_uni_table_final, "Ec_uni_table_final.csv", row.names = FALSE)
-
-Ec_uni_table_final
+#Ec_uni_table_final <- Ec_uni_table |>
+#  left_join(nN_table, by = "variable") |>
+#  mutate(n_pct = ifelse(is.na(n), NA, paste0(n, "/", N, " (", round(pct, 1), "%)")),
+#         significant = ifelse(lower > 1 | upper < 1, "Yes", "No"))
+#
+#write.csv(Ec_uni_table_final, "Ec_uni_table_final.csv", row.names = FALSE)
+#
+#Ec_uni_table_final
 ```
 
 Multivariable model
