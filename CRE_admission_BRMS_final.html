@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>CRKP Admission Risk Factors BRMS MODEL</title>
+<title>CRE Admission Risk Factors BRMS MODEL</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -128,7 +128,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title">CRKP Admission Risk Factors BRMS MODEL</h1>
+<h1 class="title">CRE Admission Risk Factors BRMS MODEL</h1>
 </div>
 
 
@@ -855,7 +855,6 @@ $ANT_ANB_HOSP_GRID
 <span id="cb135-12"><a href="#cb135-12" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb135-13"><a href="#cb135-13" aria-hidden="true" tabindex="-1"></a>rhs <span class="ot">&lt;-</span> <span class="fu">paste</span>(predictors_lean, <span class="at">collapse =</span> <span class="st">" + "</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<p>rhs</p>
 </section>
 <section id="klebsiella-pneumoniae" class="level1">
 <h1>Klebsiella pneumoniae</h1>
@@ -1606,7 +1605,7 @@ Use print(x, correlation=TRUE)  or
 <span id="cb182-9"><a href="#cb182-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Construct model formula with covariates</span></span>
 <span id="cb182-10"><a href="#cb182-10" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb182-11"><a href="#cb182-11" aria-hidden="true" tabindex="-1"></a>Ec_dataset <span class="ot">&lt;-</span> Ec_dataset <span class="sc">%&gt;%</span> <span class="fu">mutate</span>(<span class="at">carrier01 =</span> <span class="fu">as.integer</span>(carrier <span class="sc">==</span> <span class="st">"TRUE"</span>))</span>
-<span id="cb182-12"><a href="#cb182-12" aria-hidden="true" tabindex="-1"></a>formula_brm <span class="ot">&lt;-</span> <span class="fu">as.formula</span>(<span class="fu">paste0</span>(<span class="st">"carrier01 ~ "</span>, rhs))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb182-12"><a href="#cb182-12" aria-hidden="true" tabindex="-1"></a>formula_brm <span class="ot">&lt;-</span> <span class="fu">as.formula</span>(<span class="fu">paste0</span>(<span class="st">"carrier01 ~ "</span>, rhs, <span class="st">" + (1 | SITEID)"</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="run-brms-model-with-priors-1" class="level3">
@@ -1614,18 +1613,19 @@ Use print(x, correlation=TRUE)  or
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb183"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb183-1"><a href="#cb183-1" aria-hidden="true" tabindex="-1"></a>priors1 <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
 <span id="cb183-2"><a href="#cb183-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">prior</span>(<span class="fu">normal</span>(<span class="dv">0</span>, <span class="fl">1.5</span>), <span class="at">class =</span> <span class="st">"b"</span>),        <span class="co"># coefficient shrinkage</span></span>
-<span id="cb183-3"><a href="#cb183-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">prior</span>(<span class="fu">normal</span>(<span class="dv">0</span>, <span class="dv">1</span>), <span class="at">class =</span> <span class="st">"Intercept"</span>)</span>
-<span id="cb183-4"><a href="#cb183-4" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb183-5"><a href="#cb183-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb183-6"><a href="#cb183-6" aria-hidden="true" tabindex="-1"></a>Ec_brms_model <span class="ot">&lt;-</span> brms<span class="sc">::</span><span class="fu">brm</span>(<span class="at">formula =</span> formula_brm,</span>
-<span id="cb183-7"><a href="#cb183-7" aria-hidden="true" tabindex="-1"></a>                        Ec_dataset, <span class="at">family =</span> <span class="fu">bernoulli</span>(<span class="at">link =</span> <span class="st">"logit"</span>),</span>
-<span id="cb183-8"><a href="#cb183-8" aria-hidden="true" tabindex="-1"></a>                        <span class="at">prior =</span> priors1, </span>
-<span id="cb183-9"><a href="#cb183-9" aria-hidden="true" tabindex="-1"></a>                        <span class="at">chains =</span> <span class="dv">3</span>,</span>
-<span id="cb183-10"><a href="#cb183-10" aria-hidden="true" tabindex="-1"></a>                        <span class="at">cores =</span> parallel<span class="sc">::</span><span class="fu">detectCores</span>(),</span>
-<span id="cb183-11"><a href="#cb183-11" aria-hidden="true" tabindex="-1"></a>                        <span class="at">iter =</span> <span class="dv">3000</span>,  </span>
-<span id="cb183-12"><a href="#cb183-12" aria-hidden="true" tabindex="-1"></a>                        <span class="at">warmup =</span> <span class="dv">1000</span>,</span>
-<span id="cb183-13"><a href="#cb183-13" aria-hidden="true" tabindex="-1"></a>                        <span class="at">control =</span> <span class="fu">list</span>(<span class="at">adapt_delta =</span> <span class="fl">0.99</span>, <span class="at">max_treedepth =</span> <span class="dv">15</span>),</span>
-<span id="cb183-14"><a href="#cb183-14" aria-hidden="true" tabindex="-1"></a>                        <span class="at">seed =</span> <span class="dv">2026</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb183-3"><a href="#cb183-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">prior</span>(<span class="fu">normal</span>(<span class="dv">0</span>, <span class="dv">1</span>), <span class="at">class =</span> <span class="st">"Intercept"</span>),</span>
+<span id="cb183-4"><a href="#cb183-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">prior</span>(<span class="fu">student_t</span>(<span class="dv">3</span>, <span class="dv">0</span>, <span class="fl">2.5</span>), <span class="at">class =</span> <span class="st">"sd"</span>) <span class="co"># random intercept SD</span></span>
+<span id="cb183-5"><a href="#cb183-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb183-6"><a href="#cb183-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb183-7"><a href="#cb183-7" aria-hidden="true" tabindex="-1"></a>Ec_brms_model <span class="ot">&lt;-</span> brms<span class="sc">::</span><span class="fu">brm</span>(<span class="at">formula =</span> formula_brm,</span>
+<span id="cb183-8"><a href="#cb183-8" aria-hidden="true" tabindex="-1"></a>                        Ec_dataset, <span class="at">family =</span> <span class="fu">bernoulli</span>(<span class="at">link =</span> <span class="st">"logit"</span>),</span>
+<span id="cb183-9"><a href="#cb183-9" aria-hidden="true" tabindex="-1"></a>                        <span class="at">prior =</span> priors1, </span>
+<span id="cb183-10"><a href="#cb183-10" aria-hidden="true" tabindex="-1"></a>                        <span class="at">chains =</span> <span class="dv">3</span>,</span>
+<span id="cb183-11"><a href="#cb183-11" aria-hidden="true" tabindex="-1"></a>                        <span class="at">cores =</span> parallel<span class="sc">::</span><span class="fu">detectCores</span>(),</span>
+<span id="cb183-12"><a href="#cb183-12" aria-hidden="true" tabindex="-1"></a>                        <span class="at">iter =</span> <span class="dv">3000</span>,  </span>
+<span id="cb183-13"><a href="#cb183-13" aria-hidden="true" tabindex="-1"></a>                        <span class="at">warmup =</span> <span class="dv">1000</span>,</span>
+<span id="cb183-14"><a href="#cb183-14" aria-hidden="true" tabindex="-1"></a>                        <span class="at">control =</span> <span class="fu">list</span>(<span class="at">adapt_delta =</span> <span class="fl">0.99</span>, <span class="at">max_treedepth =</span> <span class="dv">15</span>),</span>
+<span id="cb183-15"><a href="#cb183-15" aria-hidden="true" tabindex="-1"></a>                        <span class="at">seed =</span> <span class="dv">2026</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stderr">
 <pre><code>Compiling Stan program...</code></pre>
 </div>
@@ -1666,68 +1666,73 @@ https://cran.r-project.org/bin/windows/Rtools/.</code></pre>
 <div class="cell-output cell-output-stdout">
 <pre><code> Family: bernoulli 
   Links: mu = logit 
-Formula: carrier01 ~ age + GENDER + smoking + children + married + job + CORMOBIDITY + SEV_RENAL + DIAB_EOD + alcohol_problem + drug_problem + hospitaltype + wardtype + InvasiveHistory + MedicationHistory + HealthcareHistory + Ab_history + ICDGroup 
+Formula: carrier01 ~ age + GENDER + smoking + children + married + job + CORMOBIDITY + SEV_RENAL + DIAB_EOD + alcohol_problem + drug_problem + hospitaltype + wardtype + InvasiveHistory + MedicationHistory + HealthcareHistory + Ab_history + ICDGroup + (1 | SITEID) 
    Data: Ec_dataset (Number of observations: 1976) 
   Draws: 3 chains, each with iter = 3000; warmup = 1000; thin = 1;
          total post-warmup draws = 6000
 
+Multilevel Hyperparameters:
+~SITEID (Number of levels: 12) 
+              Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+sd(Intercept)     0.36      0.14     0.14     0.69 1.00     1669     2133
+
 Regression Coefficients:
                               Estimate Est.Error l-95% CI u-95% CI Rhat
-Intercept                        -2.33      0.29    -2.89    -1.76 1.00
-age                              -0.06      0.08    -0.22     0.11 1.00
-GENDERmale                       -0.06      0.20    -0.47     0.32 1.00
-smokingTRUE                       0.20      0.20    -0.19     0.59 1.00
-childrenTRUE                      0.27      0.13     0.01     0.53 1.00
-marriedTRUE                      -0.03      0.18    -0.38     0.32 1.00
-jobfarmer                         0.31      0.17    -0.03     0.64 1.00
-jobhousewife                      0.78      0.24     0.31     1.24 1.00
-jobretired                        0.23      0.22    -0.21     0.65 1.00
-CORMOBIDITYTRUE                  -0.00      0.17    -0.34     0.33 1.00
-SEV_RENALTRUE                     0.58      0.38    -0.17     1.29 1.00
-DIAB_EODTRUE                      0.74      0.36     0.01     1.43 1.00
-alcohol_problemTRUE               0.21      0.21    -0.22     0.62 1.00
-drug_problemTRUE                 -0.30      0.43    -1.19     0.51 1.00
-hospitaltypeprovincial           -0.05      0.17    -0.38     0.28 1.00
-wardtypesurgical                  0.42      0.17     0.10     0.75 1.00
-InvasiveHistoryTRUE               0.40      0.23    -0.07     0.85 1.00
-MedicationHistoryTRUE             0.08      0.17    -0.25     0.41 1.00
-HealthcareHistoryTRUE             0.12      0.18    -0.23     0.48 1.00
-Ab_historyTRUE                    0.15      0.17    -0.20     0.49 1.00
-ICDGroupDigestivediseases        -0.23      0.25    -0.73     0.25 1.00
-ICDGroupGenitourinarydiseases    -0.10      0.29    -0.66     0.46 1.00
-ICDGroupIDIntestinal              0.44      0.29    -0.14     1.00 1.00
-ICDGroupIDOther                  -0.47      0.40    -1.27     0.28 1.00
-ICDGroupNeoplasms                -0.47      0.43    -1.34     0.33 1.00
-ICDGroupOther                    -0.34      0.22    -0.78     0.10 1.00
-ICDGroupRespiratorydiseases       0.08      0.24    -0.41     0.56 1.00
+Intercept                        -2.48      0.32    -3.12    -1.86 1.00
+age                              -0.05      0.09    -0.22     0.11 1.00
+GENDERmale                       -0.09      0.20    -0.48     0.30 1.00
+smokingTRUE                       0.26      0.20    -0.14     0.66 1.00
+childrenTRUE                      0.29      0.14     0.02     0.56 1.00
+marriedTRUE                      -0.03      0.18    -0.38     0.33 1.00
+jobfarmer                         0.33      0.18    -0.01     0.67 1.00
+jobhousewife                      0.73      0.24     0.27     1.20 1.00
+jobretired                        0.27      0.22    -0.15     0.71 1.00
+CORMOBIDITYTRUE                  -0.00      0.17    -0.34     0.32 1.00
+SEV_RENALTRUE                     0.36      0.39    -0.43     1.11 1.00
+DIAB_EODTRUE                      0.82      0.37     0.08     1.51 1.00
+alcohol_problemTRUE               0.20      0.21    -0.21     0.61 1.00
+drug_problemTRUE                 -0.31      0.43    -1.21     0.47 1.00
+hospitaltypeprovincial           -0.05      0.32    -0.70     0.58 1.00
+wardtypesurgical                  0.46      0.17     0.14     0.80 1.00
+InvasiveHistoryTRUE               0.40      0.24    -0.07     0.85 1.00
+MedicationHistoryTRUE             0.03      0.17    -0.31     0.36 1.00
+HealthcareHistoryTRUE             0.19      0.19    -0.17     0.56 1.00
+Ab_historyTRUE                    0.24      0.18    -0.11     0.58 1.00
+ICDGroupDigestivediseases        -0.13      0.26    -0.64     0.38 1.00
+ICDGroupGenitourinarydiseases     0.02      0.30    -0.58     0.60 1.00
+ICDGroupIDIntestinal              0.50      0.30    -0.09     1.09 1.00
+ICDGroupIDOther                  -0.23      0.42    -1.09     0.56 1.00
+ICDGroupNeoplasms                -0.43      0.44    -1.33     0.40 1.00
+ICDGroupOther                    -0.22      0.24    -0.68     0.25 1.00
+ICDGroupRespiratorydiseases       0.25      0.26    -0.26     0.75 1.00
                               Bulk_ESS Tail_ESS
-Intercept                         4708     4935
-age                               6460     5267
-GENDERmale                        5529     3937
-smokingTRUE                       5819     4781
-childrenTRUE                      9695     3919
-marriedTRUE                       8432     4715
-jobfarmer                         5418     5122
-jobhousewife                      6244     4501
-jobretired                        4997     4344
-CORMOBIDITYTRUE                   7721     4760
-SEV_RENALTRUE                     9597     4763
-DIAB_EODTRUE                      9145     4100
-alcohol_problemTRUE               9405     4574
-drug_problemTRUE                  8957     4064
-hospitaltypeprovincial            7226     4215
-wardtypesurgical                  5597     4919
-InvasiveHistoryTRUE               7096     5016
-MedicationHistoryTRUE             6809     4782
-HealthcareHistoryTRUE             6613     4784
-Ab_historyTRUE                    6957     4691
-ICDGroupDigestivediseases         2633     3594
-ICDGroupGenitourinarydiseases     3205     3936
-ICDGroupIDIntestinal              3789     3886
-ICDGroupIDOther                   5077     4392
-ICDGroupNeoplasms                 4858     4561
-ICDGroupOther                     2807     4052
-ICDGroupRespiratorydiseases       3266     4548
+Intercept                         3761     3756
+age                               4869     4699
+GENDERmale                        4669     4388
+smokingTRUE                       4865     4470
+childrenTRUE                      7772     4453
+marriedTRUE                       7387     4607
+jobfarmer                         4917     4389
+jobhousewife                      5993     4569
+jobretired                        4363     4611
+CORMOBIDITYTRUE                   7232     4734
+SEV_RENALTRUE                     6531     4349
+DIAB_EODTRUE                      8446     4296
+alcohol_problemTRUE               6714     4371
+drug_problemTRUE                  7103     4385
+hospitaltypeprovincial            3066     3700
+wardtypesurgical                  5550     4664
+InvasiveHistoryTRUE               6942     4416
+MedicationHistoryTRUE             6283     4799
+HealthcareHistoryTRUE             6328     4583
+Ab_historyTRUE                    6237     4774
+ICDGroupDigestivediseases         2734     3866
+ICDGroupGenitourinarydiseases     2997     3535
+ICDGroupIDIntestinal              3697     4226
+ICDGroupIDOther                   4034     3927
+ICDGroupNeoplasms                 4438     4004
+ICDGroupOther                     2731     3756
+ICDGroupRespiratorydiseases       3228     3989
 
 Draws were sampled using sampling(NUTS). For each parameter, Bulk_ESS
 and Tail_ESS are effective sample size measures, and Rhat is the potential
@@ -1742,128 +1747,156 @@ scale reduction factor on split chains (at convergence, Rhat = 1).</code></pre>
 <span id="cb192-2"><a href="#cb192-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb192-3"><a href="#cb192-3" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(Ec_brms_model)<span class="sc">$</span>fixed</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>                                  Estimate Est.Error    l-95% CI    u-95% CI
-Intercept                     -2.326829547 0.2901065 -2.89242178 -1.76032046
-age                           -0.056044106 0.0849404 -0.22246599  0.11080085
-GENDERmale                    -0.064950718 0.2018420 -0.47000275  0.32276298
-smokingTRUE                    0.197112255 0.2018438 -0.19129674  0.59405059
-childrenTRUE                   0.267400341 0.1323783  0.01048738  0.52919971
-marriedTRUE                   -0.033020576 0.1803329 -0.38256349  0.32330110
-jobfarmer                      0.305611802 0.1704391 -0.02898211  0.63537308
-jobhousewife                   0.784260343 0.2368003  0.30537986  1.24332984
-jobretired                     0.226640369 0.2172252 -0.20575287  0.64679443
-CORMOBIDITYTRUE               -0.003923354 0.1684114 -0.33581956  0.32924526
-SEV_RENALTRUE                  0.581217813 0.3754691 -0.16975953  1.29040665
-DIAB_EODTRUE                   0.735274695 0.3584114  0.01110763  1.43258322
-alcohol_problemTRUE            0.206926994 0.2134960 -0.22321489  0.61545310
-drug_problemTRUE              -0.300177575 0.4318510 -1.19058400  0.51441696
-hospitaltypeprovincial        -0.051793576 0.1673810 -0.38263761  0.27550163
-wardtypesurgical               0.424212546 0.1660183  0.10315531  0.75204201
-InvasiveHistoryTRUE            0.400860149 0.2320211 -0.06581855  0.85006146
-MedicationHistoryTRUE          0.079569112 0.1687717 -0.25459947  0.41117110
-HealthcareHistoryTRUE          0.121204564 0.1817300 -0.23413987  0.47515242
-Ab_historyTRUE                 0.151729881 0.1734374 -0.19782310  0.48712863
-ICDGroupDigestivediseases     -0.230294836 0.2512446 -0.72965763  0.25115630
-ICDGroupGenitourinarydiseases -0.098359736 0.2866686 -0.65843282  0.45905679
-ICDGroupIDIntestinal           0.444151503 0.2909912 -0.13983799  0.99910257
-ICDGroupIDOther               -0.468139745 0.3968644 -1.27281275  0.27837949
-ICDGroupNeoplasms             -0.470395829 0.4297506 -1.34371144  0.32776386
-ICDGroupOther                 -0.343012373 0.2239937 -0.77750348  0.09632819
-ICDGroupRespiratorydiseases    0.084438050 0.2437350 -0.40563507  0.56181131
+<pre><code>                                  Estimate  Est.Error    l-95% CI   u-95% CI
+Intercept                     -2.479325563 0.32353916 -3.11978654 -1.8577533
+age                           -0.052925949 0.08537574 -0.21995266  0.1148231
+GENDERmale                    -0.092653079 0.19574596 -0.48381514  0.2959163
+smokingTRUE                    0.256874749 0.20310758 -0.14219202  0.6648780
+childrenTRUE                   0.289846090 0.13630532  0.02271878  0.5565087
+marriedTRUE                   -0.031627893 0.18021332 -0.37880690  0.3271731
+jobfarmer                      0.328611554 0.17602145 -0.00637502  0.6735885
+jobhousewife                   0.731243286 0.24174513  0.26535001  1.1983236
+jobretired                     0.269625223 0.22022419 -0.15372078  0.7060784
+CORMOBIDITYTRUE               -0.004199205 0.17079390 -0.34074236  0.3246612
+SEV_RENALTRUE                  0.363135129 0.38961201 -0.42619506  1.1119569
+DIAB_EODTRUE                   0.815064285 0.36709815  0.07720708  1.5149240
+alcohol_problemTRUE            0.195804841 0.21202271 -0.21168511  0.6069685
+drug_problemTRUE              -0.312403869 0.43251801 -1.20988991  0.4736302
+hospitaltypeprovincial        -0.054371459 0.32150017 -0.70406779  0.5785634
+wardtypesurgical               0.464436879 0.17018079  0.13566498  0.7998510
+InvasiveHistoryTRUE            0.395647698 0.23850833 -0.06779241  0.8513870
+MedicationHistoryTRUE          0.027819677 0.17021857 -0.30569671  0.3589552
+HealthcareHistoryTRUE          0.194815951 0.18637906 -0.17004611  0.5576218
+Ab_historyTRUE                 0.240653036 0.17918894 -0.11124355  0.5834045
+ICDGroupDigestivediseases     -0.133206381 0.26473526 -0.64426691  0.3778244
+ICDGroupGenitourinarydiseases  0.016076586 0.30353670 -0.58379558  0.6029327
+ICDGroupIDIntestinal           0.498477903 0.30249500 -0.09291500  1.0859687
+ICDGroupIDOther               -0.225402834 0.42240146 -1.09111946  0.5636053
+ICDGroupNeoplasms             -0.433116497 0.43577487 -1.32973920  0.4010089
+ICDGroupOther                 -0.215870783 0.23636575 -0.67730592  0.2484192
+ICDGroupRespiratorydiseases    0.245475881 0.25754584 -0.25871300  0.7515539
                                    Rhat Bulk_ESS Tail_ESS
-Intercept                     1.0006403 4708.432 4935.000
-age                           1.0003820 6460.209 5267.190
-GENDERmale                    1.0007680 5528.738 3936.580
-smokingTRUE                   1.0005491 5819.018 4781.170
-childrenTRUE                  1.0002926 9694.896 3919.248
-marriedTRUE                   1.0008181 8431.894 4714.772
-jobfarmer                     1.0004008 5417.892 5122.219
-jobhousewife                  1.0003859 6244.113 4501.487
-jobretired                    1.0005567 4997.443 4343.689
-CORMOBIDITYTRUE               1.0003209 7720.616 4759.647
-SEV_RENALTRUE                 1.0001554 9596.896 4763.154
-DIAB_EODTRUE                  1.0017370 9144.527 4100.367
-alcohol_problemTRUE           1.0000644 9404.634 4574.262
-drug_problemTRUE              1.0010365 8956.858 4064.392
-hospitaltypeprovincial        1.0000856 7226.351 4215.499
-wardtypesurgical              1.0000509 5597.133 4918.829
-InvasiveHistoryTRUE           0.9997149 7096.228 5015.638
-MedicationHistoryTRUE         1.0003607 6809.250 4782.297
-HealthcareHistoryTRUE         1.0005162 6613.426 4784.175
-Ab_historyTRUE                1.0013843 6956.759 4690.506
-ICDGroupDigestivediseases     1.0004051 2633.254 3594.350
-ICDGroupGenitourinarydiseases 1.0002308 3204.553 3936.453
-ICDGroupIDIntestinal          1.0006839 3788.895 3886.143
-ICDGroupIDOther               1.0001761 5076.597 4391.565
-ICDGroupNeoplasms             1.0007483 4857.576 4561.197
-ICDGroupOther                 1.0006681 2807.002 4051.824
-ICDGroupRespiratorydiseases   1.0012036 3266.486 4548.440</code></pre>
+Intercept                     1.0008028 3761.029 3756.074
+age                           1.0006758 4869.041 4698.543
+GENDERmale                    1.0000091 4668.524 4387.833
+smokingTRUE                   1.0004923 4865.448 4469.648
+childrenTRUE                  1.0026595 7772.239 4452.753
+marriedTRUE                   0.9996701 7387.129 4607.209
+jobfarmer                     1.0002710 4916.649 4389.177
+jobhousewife                  0.9999268 5993.247 4568.570
+jobretired                    0.9998161 4362.802 4611.378
+CORMOBIDITYTRUE               1.0003279 7232.088 4734.136
+SEV_RENALTRUE                 1.0000097 6531.097 4348.586
+DIAB_EODTRUE                  1.0025816 8446.270 4296.477
+alcohol_problemTRUE           1.0009887 6713.557 4370.920
+drug_problemTRUE              1.0007824 7102.746 4384.863
+hospitaltypeprovincial        1.0003394 3065.808 3700.052
+wardtypesurgical              1.0002828 5550.184 4664.093
+InvasiveHistoryTRUE           1.0011150 6942.259 4416.003
+MedicationHistoryTRUE         0.9997632 6282.820 4798.657
+HealthcareHistoryTRUE         1.0004109 6328.494 4583.432
+Ab_historyTRUE                1.0004119 6236.578 4774.152
+ICDGroupDigestivediseases     1.0011571 2733.789 3866.002
+ICDGroupGenitourinarydiseases 1.0010506 2997.132 3534.868
+ICDGroupIDIntestinal          1.0007411 3697.401 4225.535
+ICDGroupIDOther               1.0001812 4033.762 3927.471
+ICDGroupNeoplasms             1.0008955 4438.253 4004.430
+ICDGroupOther                 1.0010466 2731.221 3756.367
+ICDGroupRespiratorydiseases   1.0014228 3227.774 3988.700</code></pre>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb194"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb194-1"><a href="#cb194-1" aria-hidden="true" tabindex="-1"></a><span class="fu">rhat</span>(Ec_brms_model)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>                    b_Intercept                           b_age 
-                      1.0006403                       1.0003820 
+                      1.0008028                       1.0006758 
                    b_GENDERmale                   b_smokingTRUE 
-                      1.0007680                       1.0005491 
+                      1.0000091                       1.0004923 
                  b_childrenTRUE                   b_marriedTRUE 
-                      1.0002926                       1.0008181 
+                      1.0026595                       0.9996701 
                     b_jobfarmer                  b_jobhousewife 
-                      1.0004008                       1.0003859 
+                      1.0002710                       0.9999268 
                    b_jobretired               b_CORMOBIDITYTRUE 
-                      1.0005567                       1.0003209 
+                      0.9998161                       1.0003279 
                 b_SEV_RENALTRUE                  b_DIAB_EODTRUE 
-                      1.0001554                       1.0017370 
+                      1.0000097                       1.0025816 
           b_alcohol_problemTRUE              b_drug_problemTRUE 
-                      1.0000644                       1.0010365 
+                      1.0009887                       1.0007824 
        b_hospitaltypeprovincial              b_wardtypesurgical 
-                      1.0000856                       1.0000509 
+                      1.0003394                       1.0002828 
           b_InvasiveHistoryTRUE         b_MedicationHistoryTRUE 
-                      0.9997149                       1.0003607 
+                      1.0011150                       0.9997632 
         b_HealthcareHistoryTRUE                b_Ab_historyTRUE 
-                      1.0005162                       1.0013843 
+                      1.0004109                       1.0004119 
     b_ICDGroupDigestivediseases b_ICDGroupGenitourinarydiseases 
-                      1.0004051                       1.0002308 
+                      1.0011571                       1.0010506 
          b_ICDGroupIDIntestinal               b_ICDGroupIDOther 
-                      1.0006839                       1.0001761 
+                      1.0007411                       1.0001812 
             b_ICDGroupNeoplasms                 b_ICDGroupOther 
-                      1.0007483                       1.0006681 
-  b_ICDGroupRespiratorydiseases                       Intercept 
-                      1.0012036                       1.0008102 
-                         lprior                            lp__ 
-                      1.0005377                       1.0005995 </code></pre>
+                      1.0008955                       1.0010466 
+  b_ICDGroupRespiratorydiseases            sd_SITEID__Intercept 
+                      1.0014228                       1.0009841 
+                      Intercept         r_SITEID[008,Intercept] 
+                      1.0019111                       1.0014811 
+        r_SITEID[010,Intercept]         r_SITEID[071,Intercept] 
+                      1.0007191                       1.0007373 
+        r_SITEID[073,Intercept]         r_SITEID[130,Intercept] 
+                      1.0013380                       1.0010152 
+        r_SITEID[155,Intercept]         r_SITEID[156,Intercept] 
+                      1.0015581                       1.0002301 
+        r_SITEID[157,Intercept]         r_SITEID[158,Intercept] 
+                      1.0007147                       1.0007299 
+        r_SITEID[159,Intercept]         r_SITEID[160,Intercept] 
+                      1.0005799                       1.0006827 
+        r_SITEID[161,Intercept]                          lprior 
+                      1.0005019                       1.0004251 
+                           lp__ 
+                      1.0006036 </code></pre>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb196"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb196-1"><a href="#cb196-1" aria-hidden="true" tabindex="-1"></a><span class="fu">neff_ratio</span>(Ec_brms_model)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>                    b_Intercept                           b_age 
-                      0.7847387                       0.8778650 
+                      0.6260123                       0.7830905 
                    b_GENDERmale                   b_smokingTRUE 
-                      0.6560966                       0.7968616 
+                      0.7313056                       0.7449413 
                  b_childrenTRUE                   b_marriedTRUE 
-                      0.6532080                       0.7857954 
+                      0.7421255                       0.7678681 
                     b_jobfarmer                  b_jobhousewife 
-                      0.8537032                       0.7502479 
+                      0.7315294                       0.7614283 
                    b_jobretired               b_CORMOBIDITYTRUE 
-                      0.7239482                       0.7932746 
+                      0.7271337                       0.7890226 
                 b_SEV_RENALTRUE                  b_DIAB_EODTRUE 
-                      0.7938590                       0.6833945 
+                      0.7247643                       0.7160796 
           b_alcohol_problemTRUE              b_drug_problemTRUE 
-                      0.7623770                       0.6773987 
+                      0.7284867                       0.7308105 
        b_hospitaltypeprovincial              b_wardtypesurgical 
-                      0.7025832                       0.8198049 
+                      0.5109680                       0.7773488 
           b_InvasiveHistoryTRUE         b_MedicationHistoryTRUE 
-                      0.8359396                       0.7970495 
+                      0.7360005                       0.7997762 
         b_HealthcareHistoryTRUE                b_Ab_historyTRUE 
-                      0.7973625                       0.7817509 
+                      0.7639054                       0.7956920 
     b_ICDGroupDigestivediseases b_ICDGroupGenitourinarydiseases 
-                      0.4388756                       0.5340921 
+                      0.4556315                       0.4995220 
          b_ICDGroupIDIntestinal               b_ICDGroupIDOther 
-                      0.6314826                       0.7319275 
+                      0.6162335                       0.6545785 
             b_ICDGroupNeoplasms                 b_ICDGroupOther 
-                      0.7601996                       0.4678337 
-  b_ICDGroupRespiratorydiseases                       Intercept 
-                      0.5444143                       0.7437491 
-                         lprior                            lp__ 
-                      0.6489973                       0.3845320 </code></pre>
+                      0.6674051                       0.4552034 
+  b_ICDGroupRespiratorydiseases            sd_SITEID__Intercept 
+                      0.5379623                       0.2781768 
+                      Intercept         r_SITEID[008,Intercept] 
+                      0.3726582                       0.6928165 
+        r_SITEID[010,Intercept]         r_SITEID[071,Intercept] 
+                      0.4625234                       0.5820686 
+        r_SITEID[073,Intercept]         r_SITEID[130,Intercept] 
+                      0.6436604                       0.7090006 
+        r_SITEID[155,Intercept]         r_SITEID[156,Intercept] 
+                      0.6738512                       0.5423318 
+        r_SITEID[157,Intercept]         r_SITEID[158,Intercept] 
+                      0.7261522                       0.6312322 
+        r_SITEID[159,Intercept]         r_SITEID[160,Intercept] 
+                      0.4799688                       0.6213194 
+        r_SITEID[161,Intercept]                          lprior 
+                      0.7387203                       0.5274918 
+                           lp__ 
+                      0.3064548 </code></pre>
 </div>
 </div>
 </section>
@@ -1885,12 +1918,12 @@ ICDGroupRespiratorydiseases   1.0012036 3266.486 4548.440</code></pre>
 Computed from 6000 by 1976 log-likelihood matrix.
 
          Estimate   SE
-elpd_loo   -840.4 28.3
-p_loo        27.0  1.3
-looic      1680.7 56.7
+elpd_loo   -835.4 28.4
+p_loo        33.8  1.6
+looic      1670.7 56.8
 ------
 MCSE of elpd_loo is 0.1.
-MCSE and ESS estimates assume MCMC draws (r_eff in [0.6, 2.0]).
+MCSE and ESS estimates assume MCMC draws (r_eff in [0.5, 1.7]).
 
 All Pareto k estimates are good (k &lt; 0.7).
 See help('pareto-k-diagnostic') for details.</code></pre>
@@ -1898,7 +1931,7 @@ See help('pareto-k-diagnostic') for details.</code></pre>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb201"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb201-1"><a href="#cb201-1" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(<span class="fu">bayes_R2</span>(Ec_brms_model))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>     Estimate   Est.Error       Q2.5      Q97.5
-R2 0.03985128 0.008581049 0.02451404 0.05773647</code></pre>
+R2 0.05000778 0.009980671 0.03183596 0.07081141</code></pre>
 </div>
 </div>
 </section>
@@ -1908,34 +1941,34 @@ R2 0.03985128 0.008581049 0.02451404 0.05773647</code></pre>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb203"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb203-1"><a href="#cb203-1" aria-hidden="true" tabindex="-1"></a>post_summary <span class="ot">&lt;-</span> <span class="fu">posterior_summary</span>(Ec_brms_model)</span>
 <span id="cb203-2"><a href="#cb203-2" aria-hidden="true" tabindex="-1"></a>post_summary[<span class="fu">grep</span>(<span class="st">"^b_"</span>, <span class="fu">rownames</span>(post_summary)), , drop <span class="ot">=</span> <span class="cn">FALSE</span>]  <span class="co"># show coefficients</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>                                    Estimate Est.Error        Q2.5       Q97.5
-b_Intercept                     -2.326829547 0.2901065 -2.89242178 -1.76032046
-b_age                           -0.056044106 0.0849404 -0.22246599  0.11080085
-b_GENDERmale                    -0.064950718 0.2018420 -0.47000275  0.32276298
-b_smokingTRUE                    0.197112255 0.2018438 -0.19129674  0.59405059
-b_childrenTRUE                   0.267400341 0.1323783  0.01048738  0.52919971
-b_marriedTRUE                   -0.033020576 0.1803329 -0.38256349  0.32330110
-b_jobfarmer                      0.305611802 0.1704391 -0.02898211  0.63537308
-b_jobhousewife                   0.784260343 0.2368003  0.30537986  1.24332984
-b_jobretired                     0.226640369 0.2172252 -0.20575287  0.64679443
-b_CORMOBIDITYTRUE               -0.003923354 0.1684114 -0.33581956  0.32924526
-b_SEV_RENALTRUE                  0.581217813 0.3754691 -0.16975953  1.29040665
-b_DIAB_EODTRUE                   0.735274695 0.3584114  0.01110763  1.43258322
-b_alcohol_problemTRUE            0.206926994 0.2134960 -0.22321489  0.61545310
-b_drug_problemTRUE              -0.300177575 0.4318510 -1.19058400  0.51441696
-b_hospitaltypeprovincial        -0.051793576 0.1673810 -0.38263761  0.27550163
-b_wardtypesurgical               0.424212546 0.1660183  0.10315531  0.75204201
-b_InvasiveHistoryTRUE            0.400860149 0.2320211 -0.06581855  0.85006146
-b_MedicationHistoryTRUE          0.079569112 0.1687717 -0.25459947  0.41117110
-b_HealthcareHistoryTRUE          0.121204564 0.1817300 -0.23413987  0.47515242
-b_Ab_historyTRUE                 0.151729881 0.1734374 -0.19782310  0.48712863
-b_ICDGroupDigestivediseases     -0.230294836 0.2512446 -0.72965763  0.25115630
-b_ICDGroupGenitourinarydiseases -0.098359736 0.2866686 -0.65843282  0.45905679
-b_ICDGroupIDIntestinal           0.444151503 0.2909912 -0.13983799  0.99910257
-b_ICDGroupIDOther               -0.468139745 0.3968644 -1.27281275  0.27837949
-b_ICDGroupNeoplasms             -0.470395829 0.4297506 -1.34371144  0.32776386
-b_ICDGroupOther                 -0.343012373 0.2239937 -0.77750348  0.09632819
-b_ICDGroupRespiratorydiseases    0.084438050 0.2437350 -0.40563507  0.56181131</code></pre>
+<pre><code>                                    Estimate  Est.Error        Q2.5      Q97.5
+b_Intercept                     -2.479325563 0.32353916 -3.11978654 -1.8577533
+b_age                           -0.052925949 0.08537574 -0.21995266  0.1148231
+b_GENDERmale                    -0.092653079 0.19574596 -0.48381514  0.2959163
+b_smokingTRUE                    0.256874749 0.20310758 -0.14219202  0.6648780
+b_childrenTRUE                   0.289846090 0.13630532  0.02271878  0.5565087
+b_marriedTRUE                   -0.031627893 0.18021332 -0.37880690  0.3271731
+b_jobfarmer                      0.328611554 0.17602145 -0.00637502  0.6735885
+b_jobhousewife                   0.731243286 0.24174513  0.26535001  1.1983236
+b_jobretired                     0.269625223 0.22022419 -0.15372078  0.7060784
+b_CORMOBIDITYTRUE               -0.004199205 0.17079390 -0.34074236  0.3246612
+b_SEV_RENALTRUE                  0.363135129 0.38961201 -0.42619506  1.1119569
+b_DIAB_EODTRUE                   0.815064285 0.36709815  0.07720708  1.5149240
+b_alcohol_problemTRUE            0.195804841 0.21202271 -0.21168511  0.6069685
+b_drug_problemTRUE              -0.312403869 0.43251801 -1.20988991  0.4736302
+b_hospitaltypeprovincial        -0.054371459 0.32150017 -0.70406779  0.5785634
+b_wardtypesurgical               0.464436879 0.17018079  0.13566498  0.7998510
+b_InvasiveHistoryTRUE            0.395647698 0.23850833 -0.06779241  0.8513870
+b_MedicationHistoryTRUE          0.027819677 0.17021857 -0.30569671  0.3589552
+b_HealthcareHistoryTRUE          0.194815951 0.18637906 -0.17004611  0.5576218
+b_Ab_historyTRUE                 0.240653036 0.17918894 -0.11124355  0.5834045
+b_ICDGroupDigestivediseases     -0.133206381 0.26473526 -0.64426691  0.3778244
+b_ICDGroupGenitourinarydiseases  0.016076586 0.30353670 -0.58379558  0.6029327
+b_ICDGroupIDIntestinal           0.498477903 0.30249500 -0.09291500  1.0859687
+b_ICDGroupIDOther               -0.225402834 0.42240146 -1.09111946  0.5636053
+b_ICDGroupNeoplasms             -0.433116497 0.43577487 -1.32973920  0.4010089
+b_ICDGroupOther                 -0.215870783 0.23636575 -0.67730592  0.2484192
+b_ICDGroupRespiratorydiseases    0.245475881 0.25754584 -0.25871300  0.7515539</code></pre>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb205"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb205-1"><a href="#cb205-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Posterior draws</span></span>
 <span id="cb205-2"><a href="#cb205-2" aria-hidden="true" tabindex="-1"></a>draws <span class="ot">&lt;-</span> <span class="fu">as_draws_df</span>(Ec_brms_model)</span>
@@ -1959,34 +1992,34 @@ b_ICDGroupRespiratorydiseases    0.084438050 0.2437350 -0.40563507  0.56181131</
 <span id="cb207-12"><a href="#cb207-12" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb207-13"><a href="#cb207-13" aria-hidden="true" tabindex="-1"></a><span class="fu">t</span>(or_summary)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>                                    median   l95.2.5% u95.97.5%
-b_Intercept                     0.09784928 0.05544178 0.1719897
-b_age                           0.94591758 0.80054224 1.1171724
-b_GENDERmale                    0.94096488 0.62500055 1.3809380
-b_smokingTRUE                   1.21435039 0.82588749 1.8113105
-b_childrenTRUE                  1.30553152 1.01054257 1.6975732
-b_marriedTRUE                   0.96577396 0.68211058 1.3816813
-b_jobfarmer                     1.35889363 0.97143384 1.8877263
-b_jobhousewife                  2.19649972 1.35714045 3.4671393
-b_jobretired                    1.25861124 0.81403423 1.9094103
-b_CORMOBIDITYTRUE               0.99484599 0.71475207 1.3899187
-b_SEV_RENALTRUE                 1.79236062 0.84386772 3.6342641
-b_DIAB_EODTRUE                  2.09842935 1.01116956 4.1895077
-b_alcohol_problemTRUE           1.23090646 0.79994293 1.8504949
-b_drug_problemTRUE              0.75432594 0.30404365 1.6726630
-b_hospitaltypeprovincial        0.95119195 0.68206005 1.3171912
-b_wardtypesurgical              1.53022736 1.10866358 2.1213274
-b_InvasiveHistoryTRUE           1.49353948 0.93630074 2.3397906
-b_MedicationHistoryTRUE         1.08064751 0.77522694 1.5085835
-b_HealthcareHistoryTRUE         1.12940041 0.79125114 1.6082594
-b_Ab_historyTRUE                1.16584752 0.82051500 1.6276360
-b_ICDGroupDigestivediseases     0.79381171 0.48207401 1.2855110
-b_ICDGroupGenitourinarydiseases 0.90917409 0.51766197 1.5825806
-b_ICDGroupIDIntestinal          1.56278511 0.86949918 2.7158435
-b_ICDGroupIDOther               0.63103274 0.28004287 1.3209874
-b_ICDGroupNeoplasms             0.63426804 0.26087565 1.3878613
-b_ICDGroupOther                 0.71115230 0.45955186 1.1011204
-b_ICDGroupRespiratorydiseases   1.09086366 0.66655337 1.7538464</code></pre>
+<pre><code>                                    median  l95.2.5% u95.97.5%
+b_Intercept                     0.08460243 0.0441666 0.1560228
+b_age                           0.94757069 0.8025568 1.1216750
+b_GENDERmale                    0.91340292 0.6164271 1.3443576
+b_smokingTRUE                   1.29288267 0.8674547 1.9442534
+b_childrenTRUE                  1.33536854 1.0229788 1.7445710
+b_marriedTRUE                   0.96639402 0.6846778 1.3870416
+b_jobfarmer                     1.38815161 0.9936453 1.9612628
+b_jobhousewife                  2.08354535 1.3038873 3.3145556
+b_jobretired                    1.30790740 0.8575114 2.0260303
+b_CORMOBIDITYTRUE               0.99713879 0.7112422 1.3835618
+b_SEV_RENALTRUE                 1.44396541 0.6529890 3.0403029
+b_DIAB_EODTRUE                  2.27172521 1.0802658 4.5490753
+b_alcohol_problemTRUE           1.21764705 0.8092195 1.8348606
+b_drug_problemTRUE              0.74272482 0.2982302 1.6058131
+b_hospitaltypeprovincial        0.94912496 0.4945694 1.7834745
+b_wardtypesurgical              1.59126452 1.1452981 2.2252093
+b_InvasiveHistoryTRUE           1.48612501 0.9344544 2.3428943
+b_MedicationHistoryTRUE         1.02835717 0.7366100 1.4318327
+b_HealthcareHistoryTRUE         1.21352992 0.8436259 1.7465140
+b_Ab_historyTRUE                1.27162067 0.8947208 1.7921293
+b_ICDGroupDigestivediseases     0.87437609 0.5250473 1.4591067
+b_ICDGroupGenitourinarydiseases 1.01913370 0.5577774 1.8274704
+b_ICDGroupIDIntestinal          1.65294252 0.9112710 2.9623080
+b_ICDGroupIDOther               0.80882952 0.3358403 1.7569956
+b_ICDGroupNeoplasms             0.65066208 0.2645464 1.4933305
+b_ICDGroupOther                 0.80553182 0.5079837 1.2819973
+b_ICDGroupRespiratorydiseases   1.27505887 0.7720446 2.1202921</code></pre>
 </div>
 </div>
 </section>

@@ -455,8 +455,6 @@ predictors_lean <- c(
 rhs <- paste(predictors_lean, collapse = " + ")
 ```
 
-rhs
-
 # Klebsiella pneumoniae
 
 ## Mixed-effect logistic regression
@@ -738,7 +736,7 @@ View(missing_summary)
 # Construct model formula with covariates
 
 Ec_dataset <- Ec_dataset %>% mutate(carrier01 = as.integer(carrier == "TRUE"))
-formula_brm <- as.formula(paste0("carrier01 ~ ", rhs))
+formula_brm <- as.formula(paste0("carrier01 ~ ", rhs, " + (1 | SITEID)"))
 ```
 
 ### Run brms model with priors
@@ -746,7 +744,8 @@ formula_brm <- as.formula(paste0("carrier01 ~ ", rhs))
 ```{r}
 priors1 <- c(
   prior(normal(0, 1.5), class = "b"),        # coefficient shrinkage
-  prior(normal(0, 1), class = "Intercept")
+  prior(normal(0, 1), class = "Intercept"),
+  prior(student_t(3, 0, 2.5), class = "sd") # random intercept SD
 )
 
 Ec_brms_model <- brms::brm(formula = formula_brm,
