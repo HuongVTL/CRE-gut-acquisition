@@ -352,39 +352,6 @@ The following function returns the hazard ratio of the covariates (with 95% conf
 A function to extract summary data eg n/N
 
 ```{r}
-#get_nN <- function(var, data) {
-#  x <- data[[var]]
-#  
-## binary (logical or 0/1):
-#  if (is.logical(x) || (is.numeric(x) && all(x %in% c(0, 1, NA)))) {
-#    n <- sum(x == TRUE, na.rm = TRUE)
-#    N <- sum(!is.na(x))
-#    return(data.frame(
-#      variable = paste0(var, "TRUE"),
-#      n = n,
-#      N = N,
-#      pct = n / N * 100
-#    ))
-#  }
-#  
-## factor / character
-#  if (is.factor(x) || is.character(x)) {
-#    tab <- table(x, useNA = "no")
-#    N <- sum(tab)
-#    return(data.frame(
-#      variable = paste0(var, names(tab)),
-#      n = as.numeric(tab),
-#      N = N,
-#      pct = as.numeric(tab) / N * 100
-#    ))
-#  }
-#  
-## continuous -> return NULL (handled separately)
-#  return(NULL)
-#}
-```
-
-```{r}
 get_nN_1 <- function(x) {
   column <- unlist(x)
   if (! (is.logical(column) | is.factor(column) | is.character(column))) return(NULL)
@@ -611,7 +578,7 @@ last_admissions <- ward_dates |>
 
 Computing and plotting the ward occupancies: Number of patients enrolled as a function of time for each ward. The red vertical line indicates the last enrollment.
 
-```{r fig.height = 10.38, fig.width  = 8.3, purl = FALSE, eval = eval_big_fig}
+```{r ward_occupancies, fig.height = 10.38, fig.width  = 8.3, purl = FALSE, eval = eval_big_fig}
 #| fig-cap: "Number of patients enrolled as a function of time for each ward. The red
 #| vertical line indicates the last enrollment."
 opar <- par(mfrow = c(8, 2))
@@ -626,7 +593,7 @@ par(opar)
 
 The distribution of the durations of stay in the wards:
 
-```{r}
+```{r duration_histogram}
 ward_dates |> 
   mutate(duration = as.numeric(DISCHARGE - ADMISSION) / mpd) |> 
   pull(duration) |> 
@@ -635,7 +602,7 @@ ward_dates |>
 
 Let’s see whether there is any trend on the duration of stay across wards: The duration of stay as a function of the number of patients enrolled across the wards.
 
-```{r}
+```{r duration_gam}
 the_data <- ward_dates |> 
   mutate(duration = as.numeric(DISCHARGE - ADMISSION) / mpd) |> 
   left_join(nb_wards, "ward") |> 
@@ -991,7 +958,7 @@ plot_changes <- function(bacteria = "all") {
 
 Let’s use this function to look at some example:
 
-```{r}
+```{r alluvial_plots}
 plot_changes()
 plot_changes("Escherichia coli")
 plot_changes("Klebsiella pneumoniae")
@@ -1003,7 +970,7 @@ plot_changes("Klebsiella pneumoniae")
 
 The number of enrolled patient with CRE at admission as a function of time for each ward (takes **1.5”**):
 
-```{r fig.height = 10.38, fig.width  = 8.3, purl = FALSE, eval = eval_big_fig}
+```{r enrolled_CRE_patients, fig.height = 10.38, fig.width  = 8.3, purl = FALSE, eval = eval_big_fig}
 opar <- par(mfrow = c(8, 4))
 
 CRE_admission <- MALDITOF_samples |> 
@@ -1057,7 +1024,7 @@ proportion_CRE <- ward_dates |>
 
 Proportion of enrolled patients that are CRE positive at admission as a function of time for each ward (takes **1.5”**):
 
-```{r fig.height = 10.38, fig.width  = 8.3, purl = FALSE, eval = eval_big_fig}
+```{r prop_patients_with_CRE, fig.height = 10.38, fig.width  = 8.3, purl = FALSE, eval = eval_big_fig}
 opar <- par(mfrow = c(8, 4))
 proportion_CRE |> 
   group_by(ward) |> 
@@ -1069,7 +1036,7 @@ par(opar)
 
 Here we have the same plots as for the previous section but for *K. pneumoniae* only. First the number of enrolled patient with CRE *K. pneumoniae* at admission as a function of time for each ward (takes **1”**):
 
-```{r fig.height = 10.38, fig.width  = 8.3, purl = FALSE, eval = eval_big_fig}
+```{r enrolled_Kp_patients, fig.height = 10.38, fig.width  = 8.3, purl = FALSE, eval = eval_big_fig}
 opar <- par(mfrow = c(8, 4))
 
 Kp_admission <- MALDITOF |> 
@@ -1088,7 +1055,7 @@ par(opar)
 
 Proportion of enrolled patients that are CRE *K. pneumoniae* positive at admission as a function of time for each ward (takes **1.5”**):
 
-```{r fig.height = 10.38, fig.width  = 8.3, purl = FALSE, eval = eval_big_fig}
+```{r prop_patients_with_Kp, fig.height = 10.38, fig.width  = 8.3, purl = FALSE, eval = eval_big_fig}
 numerator_df <- ward_dates |> 
   filter(USUBJID %in% Kp_admission) |> 
   group_by(ward) |> 
@@ -1639,13 +1606,13 @@ covariates1 = list("1-2" = ~ estimate_quartile + age + SEV_RENAL + problem_alcoh
 
 Model fit was assessed by comparing observed and expected state prevalences over time.
 
-```{R}
+```{r diagnostics_Kp}
 plot.prevalence.msm(Kp_msm_fit, mintime = 0, maxtime = 15, legend.pos = c(5, 90))
 ```
 
 Model fit was assessed by comparing observed and expected state prevalences over time.
 
-```{R}
+```{r}
 # plot.prevalence.msm(Kp_msm_cov_fit, mintime = 0, maxtime = 15, legend.pos = c(5, 90))
 ```
 
@@ -1881,12 +1848,12 @@ covariates_Ec = list("1-2" = ~ age + early_DOT + wardtype)
 
 Model fit was assessed by comparing observed and expected state prevalences over time.
 
-```{R}
+```{r diagnostics_Ec}
 plot.prevalence.msm(Ec_msm_fit, mintime = 0, maxtime = 15, legend.pos = c(5, 90))
 ```
 
 Model fit was assessed by comparing observed and expected state prevalences over time.
 
-```{R}
+```{r}
 # plot.prevalence.msm(Ec_msm_cov_fit, mintime = 0, maxtime = 15, legend.pos = c(5, 90))
 ```
