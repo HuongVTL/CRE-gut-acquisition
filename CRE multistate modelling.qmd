@@ -17,7 +17,7 @@ Source: [60HN: CRE burden at admission and discharge](https://choisy.github.io/6
 The paths to the data and cache folders:
 
 ```{r}
-if (Sys.getenv("USER") == "MarcChoisy") {
+if (Sys.getenv("USER") == "MarcChoisy" | Sys.getenv("USER") == "marc") {
   root <- "~/Library/CloudStorage/OneDrive-OxfordUniversityClinicalResearchUnit/"
   path2data  <- paste0(root, "SharePoint",
                        "/Hospital AMS Team/Manuscripts/60HN carriage/Data/")
@@ -32,6 +32,8 @@ if (Sys.getenv("USER") == "MarcChoisy") {
 ```
 
 ```{r setup, include = FALSE}
+eval_big_fig <-  TRUE
+
 par2 <- function(...) par(..., mgp = c(1.5, .5, 0), bty = "n")
 
 knitr::knit_hooks$set(
@@ -62,7 +64,6 @@ Numbers of minutes and seconds per day:
 mpd <- 1440
 spd <- 86400
 ```
-
 
 ### Definitions
 
@@ -351,39 +352,6 @@ The following function returns the hazard ratio of the covariates (with 95% conf
 A function to extract summary data eg n/N
 
 ```{r}
-#get_nN <- function(var, data) {
-#  x <- data[[var]]
-#  
-## binary (logical or 0/1):
-#  if (is.logical(x) || (is.numeric(x) && all(x %in% c(0, 1, NA)))) {
-#    n <- sum(x == TRUE, na.rm = TRUE)
-#    N <- sum(!is.na(x))
-#    return(data.frame(
-#      variable = paste0(var, "TRUE"),
-#      n = n,
-#      N = N,
-#      pct = n / N * 100
-#    ))
-#  }
-#  
-## factor / character
-#  if (is.factor(x) || is.character(x)) {
-#    tab <- table(x, useNA = "no")
-#    N <- sum(tab)
-#    return(data.frame(
-#      variable = paste0(var, names(tab)),
-#      n = as.numeric(tab),
-#      N = N,
-#      pct = as.numeric(tab) / N * 100
-#    ))
-#  }
-#  
-## continuous -> return NULL (handled separately)
-#  return(NULL)
-#}
-```
-
-```{r}
 get_nN_1 <- function(x) {
   column <- unlist(x)
   if (! (is.logical(column) | is.factor(column) | is.character(column))) return(NULL)
@@ -391,7 +359,7 @@ get_nN_1 <- function(x) {
     group_by(across(1)) |> 
     tally() |> 
     rename_with(~ "variable", .cols = 1) |> 
-    mutate(across(variable, ~ paste0(var, "_", .x)),
+    mutate(across(variable, ~ paste0(names(x), "_", .x)),
            N   = sum(n),
            pct = n / N)
 }
@@ -433,7 +401,6 @@ A tuning of the `starts_with()` function:
 ```{r}
 starts_with_c <- function(...) starts_with(..., ignore.case = FALSE)
 ```
-
 
 ## Discharge dates
 
@@ -611,7 +578,7 @@ last_admissions <- ward_dates |>
 
 Computing and plotting the ward occupancies: Number of patients enrolled as a function of time for each ward. The red vertical line indicates the last enrollment.
 
-```{r fig.height = 10.38, fig.width  = 8.3, purl = FALSE}
+```{r ward_occupancies, fig.height = 10.38, fig.width  = 8.3, purl = FALSE, eval = eval_big_fig}
 #| fig-cap: "Number of patients enrolled as a function of time for each ward. The red
 #| vertical line indicates the last enrollment."
 opar <- par(mfrow = c(8, 2))
@@ -626,7 +593,7 @@ par(opar)
 
 The distribution of the durations of stay in the wards:
 
-```{r}
+```{r duration_histogram}
 ward_dates |> 
   mutate(duration = as.numeric(DISCHARGE - ADMISSION) / mpd) |> 
   pull(duration) |> 
@@ -635,7 +602,7 @@ ward_dates |>
 
 Let’s see whether there is any trend on the duration of stay across wards: The duration of stay as a function of the number of patients enrolled across the wards.
 
-```{r}
+```{r duration_gam}
 the_data <- ward_dates |> 
   mutate(duration = as.numeric(DISCHARGE - ADMISSION) / mpd) |> 
   left_join(nb_wards, "ward") |> 
@@ -657,8 +624,7 @@ with(the_model, {
 
 ### Patient-level covariates
 
-Patient-level covariates to adjust for in the msm of CRE acqusition during
-hospitalization:
+Patient-level covariates to adjust for in the msm of CRE acqusition during hospitalization:
 
 ```{r}
 (covariates_1 <- CRF |>    
@@ -810,7 +776,6 @@ Merging all `covariates_pt`
                       AB_after_admission, abx_early) |> 
   reduce(left_join, by = "USUBJID"))
 ```
-
 
 ## MALDI-TOF data
 
@@ -993,7 +958,7 @@ plot_changes <- function(bacteria = "all") {
 
 Let’s use this function to look at some example:
 
-```{r}
+```{r alluvial_plots}
 plot_changes()
 plot_changes("Escherichia coli")
 plot_changes("Klebsiella pneumoniae")
@@ -1005,7 +970,7 @@ plot_changes("Klebsiella pneumoniae")
 
 The number of enrolled patient with CRE at admission as a function of time for each ward (takes **1.5”**):
 
-```{r fig.height = 10.38, fig.width  = 8.3, purl = FALSE}
+```{r enrolled_CRE_patients, fig.height = 10.38, fig.width  = 8.3, purl = FALSE, eval = eval_big_fig}
 opar <- par(mfrow = c(8, 4))
 
 CRE_admission <- MALDITOF_samples |> 
@@ -1059,7 +1024,7 @@ proportion_CRE <- ward_dates |>
 
 Proportion of enrolled patients that are CRE positive at admission as a function of time for each ward (takes **1.5”**):
 
-```{r fig.height = 10.38, fig.width  = 8.3, purl = FALSE}
+```{r prop_patients_with_CRE, fig.height = 10.38, fig.width  = 8.3, purl = FALSE, eval = eval_big_fig}
 opar <- par(mfrow = c(8, 4))
 proportion_CRE |> 
   group_by(ward) |> 
@@ -1071,7 +1036,7 @@ par(opar)
 
 Here we have the same plots as for the previous section but for *K. pneumoniae* only. First the number of enrolled patient with CRE *K. pneumoniae* at admission as a function of time for each ward (takes **1”**):
 
-```{r fig.height = 10.38, fig.width  = 8.3, purl = FALSE}
+```{r enrolled_Kp_patients, fig.height = 10.38, fig.width  = 8.3, purl = FALSE, eval = eval_big_fig}
 opar <- par(mfrow = c(8, 4))
 
 Kp_admission <- MALDITOF |> 
@@ -1090,7 +1055,7 @@ par(opar)
 
 Proportion of enrolled patients that are CRE *K. pneumoniae* positive at admission as a function of time for each ward (takes **1.5”**):
 
-```{r fig.height = 10.38, fig.width  = 8.3, purl = FALSE}
+```{r prop_patients_with_Kp, fig.height = 10.38, fig.width  = 8.3, purl = FALSE, eval = eval_big_fig}
 numerator_df <- ward_dates |> 
   filter(USUBJID %in% Kp_admission) |> 
   group_by(ward) |> 
@@ -1297,7 +1262,6 @@ add_all_covariables <- function(df, bug) {
 }
 ```
 
-
 ## *K. pneumoniae*
 
 ### Preparing the data
@@ -1392,19 +1356,19 @@ table(Kp_msm_cov$state[Kp_msm_cov$days > 0])   # discharge
 
 We defined a two-state continuous-time multistate model with the following states:
 
-* State 1: No carriage of CRE
+-   State 1: No carriage of CRE
 
-* State 2: Carriage of CRE
+-   State 2: Carriage of CRE
 
 The following transitions were allowed:
 
-* 1 -> 2: Acquisition of CRE carriage
+-   1 -\> 2: Acquisition of CRE carriage
 
-* 2 -> 1: Clearance of CRE carriage
+-   2 -\> 1: Clearance of CRE carriage
 
 Patient states were observed at discrete time points (admission and discharge), and transitions between states were not observed continuously, resulting in interval-censored data. The underlying process was assumed to follow a time-homogeneous continuous-time Markov model.
 
-Clearance (2 -> 1) was included to allow reversibility of carriage status between observation times, although the exact timing of clearance was not observed. Given the limited number of observation time points, estimates of clearance should be interpreted with caution.
+Clearance (2 -\> 1) was included to allow reversibility of carriage status between observation times, although the exact timing of clearance was not observed. Given the limited number of observation time points, estimates of clearance should be interpreted with caution.
 
 Time was measured in days since admission. Discharge defined the end of the observation period and was treated as right censoring rather than as a separate state. Transition intensities are therefore interpreted conditional on the observed follow-up time. Because discharge terminates observation and may be related to patient status, it may represent an informative censoring mechanism, which is not explicitly modeled in this framework.
 
@@ -1589,23 +1553,38 @@ univariable_model <- function(v, data) {
 }
 ```
 
+The function that makes the univariable models table:
+
+```{r}
+make_uni_table <- function(df, vars) {
+  vars |> 
+    set_names() |>
+    map_dfr(univariable_model, data = df, .id = "variable")
+}
+```
+
+The function that makes the nN table:
+
+```{r}
+make_nN_table <- function(df, vars) {
+  df |> 
+    filter(days == 0) |> 
+    select(!! vars) |>
+    get_nN()
+}
+```
+
 Running uni-variable models **(takes 10")**:
 
 ```{r Kp_uni_table_final, cache = TRUE}
-Kp_uni_table <- vars |> 
-  set_names() |>
-  map_dfr(univariable_model, data = Kp_msm_cov, .id = "variable")
-
-nN_table <- Kp_msm_cov |> 
-  filter(days == 0) |> 
-  select(!! vars) |>
-  get_nN()
+Kp_uni_table <- make_uni_table(Kp_msm_cov, vars)
+Kp_nN_table <- make_nN_table(Kp_msm_cov, vars)
 
 # The code below cannot work because the values of the variable "variable" in the two
-# data frames Kp_uni_table and nN_table are not the same!
+# data frames Kp_uni_table and Kp_nN_table are not the same!
 
 #Kp_uni_table_final <- Kp_uni_table |>
-#  left_join(nN_table, by = "variable") |>
+#  left_join(Kp_nN_table, by = "variable") |>
 #  mutate(n_pct = ifelse(is.na(n), NA, paste0(n, "/", N, " (", round(pct, 1), "%)")),
 #         significant = ifelse(lower > 1 | upper < 1, "Yes", "No"))
 #
@@ -1613,7 +1592,6 @@ nN_table <- Kp_msm_cov |>
 #
 #Kp_uni_table_final
 ```
-
 
 Multivariable model
 
@@ -1628,13 +1606,13 @@ covariates1 = list("1-2" = ~ estimate_quartile + age + SEV_RENAL + problem_alcoh
 
 Model fit was assessed by comparing observed and expected state prevalences over time.
 
-```{R}
+```{r diagnostics_Kp}
 plot.prevalence.msm(Kp_msm_fit, mintime = 0, maxtime = 15, legend.pos = c(5, 90))
 ```
 
 Model fit was assessed by comparing observed and expected state prevalences over time.
 
-```{R}
+```{r}
 # plot.prevalence.msm(Kp_msm_cov_fit, mintime = 0, maxtime = 15, legend.pos = c(5, 90))
 ```
 
@@ -1841,20 +1819,14 @@ Univariable exploration
 **(takes 10")**
 
 ```{r Ec_uni_table_final, cache = TRUE}
-Ec_uni_table <- vars |> 
-  set_names() |>
-  map_dfr(univariable_model, data = Ec_msm_cov, .id = "variable")
-
-nN_table <- Ec_msm_cov |> 
-  filter(days == 0) |> 
-  select(!! vars) |>
-  get_nN()
+Ec_uni_table <- make_uni_table(Ec_msm_cov, vars)
+Ec_nN_table <- make_nN_table(Ec_msm_cov, vars)
 
 # The code below cannot work because the values of the variable "variable" in the two
 # data frames Kp_uni_table and nN_table are not the same!
 
 #Ec_uni_table_final <- Ec_uni_table |>
-#  left_join(nN_table, by = "variable") |>
+#  left_join(Ec_nN_table, by = "variable") |>
 #  mutate(n_pct = ifelse(is.na(n), NA, paste0(n, "/", N, " (", round(pct, 1), "%)")),
 #         significant = ifelse(lower > 1 | upper < 1, "Yes", "No"))
 #
@@ -1876,12 +1848,12 @@ covariates_Ec = list("1-2" = ~ age + early_DOT + wardtype)
 
 Model fit was assessed by comparing observed and expected state prevalences over time.
 
-```{R}
+```{r diagnostics_Ec}
 plot.prevalence.msm(Ec_msm_fit, mintime = 0, maxtime = 15, legend.pos = c(5, 90))
 ```
 
 Model fit was assessed by comparing observed and expected state prevalences over time.
 
-```{R}
+```{r}
 # plot.prevalence.msm(Ec_msm_cov_fit, mintime = 0, maxtime = 15, legend.pos = c(5, 90))
 ```
