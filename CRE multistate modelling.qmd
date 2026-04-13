@@ -29,6 +29,7 @@ if (Sys.getenv("USER") == "MarcChoisy" | Sys.getenv("USER") == "marc") {
 #### HUONG OIIIII!!!! CHANGE THE PATH TO YOUR CACHE FOLDER IF YOU WANT ################
   path2cache <- paste0(path2data, "cache/")
 }
+if (! dir.exists(path2cache)) dir.create(path2cache)
 ```
 
 ```{r setup, include = FALSE}
