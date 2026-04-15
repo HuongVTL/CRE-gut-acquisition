@@ -448,7 +448,7 @@ predictors_full <- c(
 
 predictors_lean <- c(
   "age", "GENDER", "smoking", "children", "married", "job",
-  "CORMOBIDITY", "SEV_RENAL", "DIAB_EOD", "alcohol_problem", "drug_problem", "hospitaltype", "wardtype", "InvasiveHistory", "MedicationHistory",
+  "CORMOBIDITY", "CPD", "SEV_RENAL", "DIAB_EOD", "alcohol_problem", "drug_problem", "hospitaltype", "wardtype", "InvasiveHistory", "MedicationHistory",
   "HealthcareHistory", "Ab_history", "ICDGroup"
   )
 
@@ -467,7 +467,7 @@ na.exclude() |>
 mutate(across(where(~ !is.numeric(.x)), as.factor),
        age = as.numeric(scale(age)))
 
-Kp_mixed_model <- glmer(carrier ~ age + GENDER + smoking + children + married + job + CORMOBIDITY + SEV_RENAL + DIAB_EOD + alcohol_problem + drug_problem + hospitaltype + wardtype + InvasiveHistory + MedicationHistory + HealthcareHistory + Ab_history + ICDGroup + (1 | SITEID),
+Kp_mixed_model <- glmer(carrier ~ age + GENDER + smoking + children + married + job + CORMOBIDITY + CPD + SEV_RENAL + DIAB_EOD + alcohol_problem + drug_problem + hospitaltype + wardtype + InvasiveHistory + MedicationHistory + HealthcareHistory + Ab_history + ICDGroup + (1 | SITEID),
                             Kp_dataset, binomial)
 ```
 
@@ -631,14 +631,14 @@ df_plot <- df_plot %>%
     SEV_RENALTRUE = "Severe renal disease",
     DIAB_NOEODTRUE = "Diabetes (no EOD)",
     DIAB_EODTRUE = "Diabetes (EOD)",
-    alcohol_problemTRUE = "Alcohol problem",
-    drug_problemTRUE = "Drug problem",
+    alcohol_problemTRUE = "Alcohol use problem",
+    drug_problemTRUE = "Drug use problem",
     hospitaltypeprovincial = "Provincial hospital",
     wardtypesurgical = "Surgical ward",
-    InvasiveHistoryTRUE = "Invasive history",
-    MedicationHistoryTRUE = "Medication history",
+    InvasiveHistoryTRUE = "Invasive procedure history",
+    MedicationHistoryTRUE = "Medication history (not antibiotic)",
     HealthcareHistoryTRUE = "Prior hospitalization",
-    Ab_historyTRUE = "Antibiotic history",
+    Ab_historyTRUE = "Prior antibiotic use",
     ICDGroupDigestivediseases = "Digestive diseases diagnosis",
     ICDGroupGenitourinarydiseases = "Genitourinary diseases diagnosis",
     ICDGroupIDIntestinal = "Intestinal Infectious diseases diagnosis",
@@ -696,7 +696,7 @@ na.exclude() |>
 mutate(across(where(~ !is.numeric(.x)), as.factor),
        age = as.numeric(scale(age)))
 
-Ec_mixed_model <- glmer(carrier ~ age + GENDER + smoking + children + married + job + CORMOBIDITY + SEV_RENAL + DIAB_EOD + alcohol_problem + drug_problem + hospitaltype + wardtype + InvasiveHistory + MedicationHistory + HealthcareHistory + Ab_history + ICDGroup + (1 | SITEID),
+Ec_mixed_model <- glmer(carrier ~ age + GENDER + smoking + children + married + job + CORMOBIDITY + CPD + SEV_RENAL + DIAB_EOD + alcohol_problem + drug_problem + hospitaltype + wardtype + InvasiveHistory + MedicationHistory + HealthcareHistory + Ab_history + ICDGroup + (1 | SITEID),
                             Ec_dataset, binomial)
 ```
 
@@ -856,14 +856,14 @@ df_plot <- df_plot %>%
     SEV_RENALTRUE = "Severe renal disease",
     DIAB_NOEODTRUE = "Diabetes (no EOD)",
     DIAB_EODTRUE = "Diabetes (EOD)",
-    alcohol_problemTRUE = "Alcohol problem",
-    drug_problemTRUE = "Drug problem",
+    alcohol_problemTRUE = "Alcohol use problem",
+    drug_problemTRUE = "Drug use problem",
     hospitaltypeprovincial = "Provincial hospital",
     wardtypesurgical = "Surgical ward",
-    InvasiveHistoryTRUE = "Invasive history",
-    MedicationHistoryTRUE = "Medication history",
+    InvasiveHistoryTRUE = "Invasive procedure history",
+    MedicationHistoryTRUE = "Medication history (not antibiotic)",
     HealthcareHistoryTRUE = "Prior hospitalization",
-    Ab_historyTRUE = "Antibiotic history",
+    Ab_historyTRUE = "Prior antibiotic use",
     ICDGroupDigestivediseases = "Digestive diseases diagnosis",
     ICDGroupGenitourinarydiseases = "Genitourinary diseases diagnosis",
     ICDGroupIDIntestinal = "Intestinal Infectious diseases diagnosis",
