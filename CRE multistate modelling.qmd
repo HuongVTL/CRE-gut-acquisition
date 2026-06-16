@@ -1,40 +1,74 @@
 ---
 title: "MSM model"
-format: html
+number-sections: true
+format:
+  html:
+    toc: true
+    toc-depth: 4
 editor: visual
+editor_options: 
+  chunk_output_type: console
 ---
 
 Source: [60HN: CRE burden at admission and discharge](https://choisy.github.io/60HN/analysis.html)
 
-## **1 Constants**
+## Constants
+
+The paths to the data and cache folders:
 
 ```{r}
-if (grepl("arc|hoisy", Sys.getenv("USER"))) {
-  path2data <- paste0("~/Library/CloudStorage/OneDrive-OxfordUniversityClinical",
-                      "ResearchUnit/GitHub/HuongVTL/CRE-gut-acquisition/")
+if (Sys.getenv("USER") == "MarcChoisy" | Sys.getenv("USER") == "marc") {
+  root <- "~/Library/CloudStorage/OneDrive-OxfordUniversityClinicalResearchUnit/"
+  path2data  <- paste0(root, "SharePoint",
+                       "/Hospital AMS Team/Manuscripts/60HN carriage/Data/")
+  path2cache <- paste0(root, "GitHub",
+                       "/HuongVTL/CRE-gut-acquisition/cache/")
 } else {
   path2data <- paste("C:/Users/huongvtl/OneDrive - Oxford University Clinical",
                      "Research Unit/60HN CRE transmission manuscript/")
+#### HUONG OIIIII!!!! CHANGE THE PATH TO YOUR CACHE FOLDER IF YOU WANT ################
+  path2cache <- paste0(path2data, "cache/")
 }
+if (! dir.exists(path2cache)) dir.create(path2cache)
 ```
+
+```{r setup, include = FALSE}
+eval_big_fig <-  TRUE
+
+par2 <- function(...) par(..., mgp = c(1.5, .5, 0), bty = "n")
+
+knitr::knit_hooks$set(
+  margin1 = function(before, options, envir) {
+    if (before) par2(plt = c(.105, .97, .15, .95)) else NULL
+  })
+
+eps <- .8
+knitr::opts_chunk$set(cache.path = path2cache,
+                      margin1    = TRUE,
+                      fig.retina = 2,
+                      fig.align  = "center",
+                      fig.height = eps * 5, # default is 5
+                      fig.width  = eps * 7) # default is 7 and maximum possible is 8.3
+```
+
+The names of the data files:
 
 ```{r}
 discharge_file <- "60HN - DischargeDate_no_discharge_sample_27Nov25.xlsx"
-
 CRF_file <- "16-12-2025-_60HN_PATIENT_P1_Data.xls"
-
 MALDITOF_file <- "60HN_ID_MALDITOF_confirmation_20251128.xlsx"
-
-mpd <- 1440
-spd <- 86400
-
-nb_cores <- parallel::detectCores() - 1
-#nb_cores <- 1
 ```
 
-Definitions
+Numbers of minutes and seconds per day:
 
-ICD10 groups
+```{r}
+mpd <- 1440
+spd <- 86400
+```
+
+### Definitions
+
+ICD10 groups:
 
 ```{r}
 id_intestinal <- c("A04", "A04.8", "A04.9", "A05.9", "A06.4", "A08.0", "A08.5", "A09",
@@ -79,10 +113,10 @@ genitourinary_diseases <- c("N00", "N13.2", "N13.3", "N13.6", "N17", "N17.9", "N
                             "N40", "N43.2", "N45", "N47", "N48.1", "N70")
 ```
 
-Antimicrobials
+Antimicrobials:
 
 ```{r}
-cefoperazone <- c("Cefoperazol","Cefoperazole", "Cefoperazon", "Cefoperazone")
+cefoperazone <- c("Cefoperazol", "Cefoperazole", "Cefoperazon", "Cefoperazone")
 ampicill_sulb <- "Senitram"
 cefamandol <- c("Cefamandol", "Cefemandol")
 cefo_sulb <- "Vitabactam"
@@ -91,28 +125,33 @@ cefprozil <- "Cefprozil"
 cefradin <- "Cefradin"
 ceftizoxime <- c("Ceftizoxim", "Ceftizoxime", "Ceftizoxom", "Ceftrizoxim")
 cefmetazol <- "Cefmetazol"
+carbapenems <- c("Imipenem_cilastatin", "Meropenem", "Ertapenem", "Doripenem")
 ticarcillin_acid_clavulan <- c("Ticarcillin + Acid clavulanic",
                                "Ticarcillin + Clavulanic",
                                "Ticarcillin/acid clavulanic")
 ```
 
-## **2 Packages**
+## Packages
 
-```{r}
+```{r message = FALSE}
 required <- c("readxl", "purrr", "dplyr", "lubridate", "magrittr", "tidyr", "msm",
-              "rlang", "mgcv", "gratia", "alluvial", "furrr", "parallel")
+              "rlang", "mgcv", "gratia", "alluvial", "parallel")
 
 to_install <- required[! required %in% installed.packages()[,"Package"]]
 if (length(to_install)) install.packages(to_install)
 
 invisible(sapply(required, library, character.only = TRUE))
-
-plan(multisession)
 ```
 
-## **3 General functions**
+Number of cores to use for parallel calculations:
 
-A function that pastes a vector of dates and a vector of times both in character format and returns a `dttm` vector:
+```{r}
+nb_cores <- parallel::detectCores() - 1
+```
+
+## General functions
+
+A function that pastes a vector of dates and a vector of times both in character format and returns a `dttm` vector:
 
 ```{r}
 as_datetime2 <- function(date, time) {
@@ -125,7 +164,7 @@ as_datetime2 <- function(date, time) {
 }
 ```
 
-A function that converts a column `col` of a data frame `x` into a list-column (assuming that all the other columns have the same values across rows):
+A function that converts a column `col` of a data frame `x` into a list-column (assuming that all the other columns have the same values across rows):
 
 ```{r}
 col2listcol <- function(x, col) {
@@ -136,13 +175,13 @@ col2listcol <- function(x, col) {
 }
 ```
 
-A tuning of the `hist()` function:
+A tuning of the `hist()` function:
 
 ```{r}
 hist2 <- function(x, ...) hist(x, floor(min(x)):ceiling(max(x)), main = NA, ...)
 ```
 
-A wrapper that formats the output of the `binom.test()` function:
+A wrapper that formats the output of the `binom.test()` function:
 
 ```{r}
 binom_test <- function(x, n, ...) {
@@ -154,31 +193,7 @@ binom_test <- function(x, n, ...) {
 }
 ```
 
-It seems the output function from the `binom.test()` above could have issues, use the following instead:
-
-```{r}
-safe_binom_test <- function(x, n) {
-  if (is.na(x) || is.na(n) || n <= 0 || x < 0 || x > n) {
-    return(tibble(
-      estimate = NA_real_,
-      conf.low = NA_real_,
-      conf.high = NA_real_,
-      p.value = NA_real_
-    ))
-  }
-
-  bt <- binom.test(x, n)
-
-  tibble(
-    estimate = unname(bt$estimate),
-    conf.low = bt$conf.int[1],
-    conf.high = bt$conf.int[2],
-    p.value = bt$p.value
-  )
-}
-```
-
-A tuning of the `polygon()` function:
+A tuning of the `polygon()` function:
 
 ```{r}
 polygon2 <- function(x, y1, y2, border = NA, ...) {
@@ -210,7 +225,7 @@ Example use:
 firstNA(c(1, 3, 2, 5, 3, NA, NA, 3, 2, 5, NA, 5, 3, 2, 6, NA, NA, NA, 1, 3, 2, 5, 3))
 ```
 
-A function that duplicates the first rows of a series of rows with NA values in the `colNA` column, and replaces the values of the `col_sel` columns with values of the row right before:
+A function that duplicates the first rows of a series of rows with NA values in the `colNA` column, and replaces the values of the `col_sel` columns with values of the row right before:
 
 ```{r}
 duplicate_NA_rows <- function(x, colNA = "estimate",
@@ -227,7 +242,7 @@ duplicate_NA_rows <- function(x, colNA = "estimate",
 }
 ```
 
-A function that splits a data frame `x` into a list of data frames according to the presence of missing values in the `col` column of the data frame:
+A function that splits a data frame `x` into a list of data frames according to the presence of missing values in the `col` column of the data frame:
 
 ```{r}
 remove_NAs <- function(x, col) {
@@ -250,7 +265,7 @@ remove_NAs(mtcars, carb)
 rm(mtcars)
 ```
 
-A tuning of the `msm()` function for a bi-state bi-directional case:
+A tuning of the `msm()` function for a bi-state bi-directional case:
 
 ```{r}
 bsm <- function(formula, subject, data, ...) {
@@ -263,7 +278,7 @@ bsm <- function(formula, subject, data, ...) {
 }
 ```
 
-A function that bootstraps estimates of the fitted multistate model `msm_fit` where `f` is the function that generates the estimates and `N` is the number of bootstrap repetitions:
+A function that bootstraps estimates of the fitted multistate model `msm_fit` where `f` is the function that generates the estimates and `N` is the number of bootstrap repetitions:
 
 ```{r}
 boot_msm <- function(msm_fit, f = qmatrix.msm, N = 1000, ...) {
@@ -274,7 +289,7 @@ boot_msm <- function(msm_fit, f = qmatrix.msm, N = 1000, ...) {
 }
 ```
 
-A function that generates statistic `f` estimates from bootstrap samples `boot_samples` outputed by `boot_msm()`:
+A function that generates statistic `f` estimates from bootstrap samples `boot_samples` outputed by `boot_msm()`:
 
 ```{r}
 boot_stat <- function(boots_samples, f = sd) {
@@ -286,7 +301,7 @@ boot_stat <- function(boots_samples, f = sd) {
 }
 ```
 
-A function that generates a `ci`% confidence interval from bootstrap samples `boot_samples` outputed by `boot_msm()`:
+A function that generates a `ci`% confidence interval from bootstrap samples `boot_samples` outputed by `boot_msm()`:
 
 ```{r}
 boot_ci <- function(boots_samples, ci = .95) {
@@ -298,7 +313,7 @@ boot_ci <- function(boots_samples, ci = .95) {
 }
 ```
 
-A function that computes `lubridate`-formatted durations:
+A function that computes `lubridate`-formatted durations:
 
 ```{r}
 time_diff <- function(x) as.duration(diff(x))
@@ -307,15 +322,15 @@ time_diff <- function(x) as.duration(diff(x))
 A function that extracts the estimations with 95% CI of the rate of colonization and decolonization per 100 patient days:
 
 ```{r}
-bsm_estimations <- function(x, event_names = c("colonization", "clearance")) {
-  out <- cbind(matrix(x$estimates.t, 2), x$ci)
-  rownames(out) <- event_names
-  colnames(out) <- c("estimate", "lower", "upper")
-  100 * out
-}
+#bsm_estimations <- function(x, event_names = c("colonization", "clearance")) {
+#  out <- cbind(matrix(x$estimates.t, 2), x$ci)
+#  rownames(out) <- event_names
+#  colnames(out) <- c("estimate", "lower", "upper")
+#  100 * out
+#}
 ```
 
-Tunings of the `alluvial()` function:
+Tunings of the `alluvial()` function:
 
 ```{r}
 alluvial2 <- alluvial
@@ -329,87 +344,66 @@ alluvial3 <- function(x, print = TRUE, ...) {
 }
 ```
 
-The following function returns the hazard ratio of the covariates (with 95% confidence intervals) of an output of `msm()`:
+The following function returns the hazard ratio of the covariates (with 95% confidence intervals) of an output of `msm()`:
 
 ```{r}
-HR <- function(x) summary(x)$hazard
+#HR <- function(x) summary(x)$hazard
 ```
 
 A function to extract summary data eg n/N
 
 ```{r}
-get_nN <- function(var, data) {
-  
-  x <- data[[var]]
-  
-  # binary (logical or 0/1)
-  if (is.logical(x) || (is.numeric(x) && all(x %in% c(0,1,NA)))) {
-    n <- sum(x == TRUE, na.rm = TRUE)
-    N <- sum(!is.na(x))
-    
-    return(data.frame(
-      variable = paste0(var, "TRUE"),
-      n = n,
-      N = N,
-      pct = n / N * 100
-    ))
-  }
-  
-  # factor / character
-  if (is.factor(x) || is.character(x)) {
-    tab <- table(x, useNA = "no")
-    N <- sum(tab)
-    
-    return(data.frame(
-      variable = paste0(var, names(tab)),
-      n = as.numeric(tab),
-      N = N,
-      pct = as.numeric(tab) / N * 100
-    ))
-  }
-  
-  # continuous → return NULL (handled separately)
-  return(NULL)
+get_nN_1 <- function(x) {
+  column <- unlist(x)
+  if (! (is.logical(column) | is.factor(column) | is.character(column))) return(NULL)
+  x |> 
+    group_by(across(1)) |> 
+    tally() |> 
+    rename_with(~ "variable", .cols = 1) |> 
+    mutate(across(variable, ~ paste0(names(x), "_", .x)),
+           N   = sum(n),
+           pct = n / N)
+}
+
+get_nN <- function(df) {
+  df |> 
+    imap(~ tibble(!!.y := .x)) |>
+    map_dfr(get_nN_1)
 }
 ```
 
-A function to extract HR from msm to a table format
+A function to extract HR from `msm` to a table format
 
 ```{r}
 extract_hr_msm <- function(fit) {
-  
   s <- summary(fit)
-  
   if (is.null(s$hazard)) return(NULL)
-  
   hazard_list <- s$hazard
-  
   results_list <- list()
-  
   for (name in names(hazard_list)) {
-    
     mat <- as.data.frame(hazard_list[[name]])
-    
-    # keep only 1→2 transition
+# keep only 1 -> 2 transition:
     mat <- mat[grep("State 1 - State 2", rownames(mat)), , drop = FALSE]
-    
-    # skip if empty or missing columns
+# skip if empty or missing columns:
     if (nrow(mat) == 0 || !all(c("HR", "L", "U") %in% colnames(mat))) next
-    
     results_list[[name]] <- data.frame(
       HR = mat$HR[1],
       lower = mat$L[1],
       upper = mat$U[1]
     )
   }
-  
   if (length(results_list) == 0) return(NULL)
-  
   bind_rows(results_list)
 }
 ```
 
-## **4 Discharge dates**
+A tuning of the `starts_with()` function:
+
+```{r}
+starts_with_c <- function(...) starts_with(..., ignore.case = FALSE)
+```
+
+## Discharge dates
 
 Loading the discharge dates for the patients who did not provide any sample at discharge:
 
@@ -420,11 +414,11 @@ Loading the discharge dates for the patients who did not provide any sample at d
   select(-No, -SiteID, -`Discharge date (2)`))
 ```
 
-## **5 CRF data**
+## CRF data
 
-Reading the data (it takes **1”**):
+Reading the data (it takes **1"**):
 
-```{r}
+```{r CRF, cache = TRUE, warning = FALSE}
 file <- paste0(path2data, CRF_file)
 
 CRF <- file |>
@@ -435,11 +429,11 @@ CRF <- file |>
   map(~ filter(.x, entry > 1))
 ```
 
-### **5.1 Samples dates**
+### Samples dates
 
-The dates of samples collection at admission and discharge (takes **10”**):
+The dates of samples collection at admission and discharge (takes **10”**):
 
-```{r}
+```{r dates, cache = TRUE}
 dates <- CRF |> 
   extract2("SCR") |> 
   select(USUBJID, SPEC_DATE_ADMISSION, SPEC_TIME_ADMISSION,
@@ -472,19 +466,13 @@ The number of samples at discharge is:
 (nb_samples_discharge <- nb_samples_admission - nb_missing_samples)
 ```
 
-The number of samples at discharge is:
-
-```{r}
-(nb_samples_discharge <- nb_samples_admission - nb_missing_samples)
-```
-
 The total number of samples is:
 
 ```{r}
 (nb_samples <- nb_samples_admission + nb_samples_discharge)
 ```
 
-Verifying that `DISCHARGE` is after `ADMISSION`:
+Verifying that `DISCHARGE` is after `ADMISSION`:
 
 ```{r}
 dates |> 
@@ -492,13 +480,13 @@ dates |>
   filter(DISCHARGE < ADMISSION)
 ```
 
-### **5.2 Wards**
+### Wards
 
 Generating the ward data:
 
 ```{r}
 (wards <- CRF$ADM |> 
-  mutate(across(starts_with("WARD"), as.numeric),
+  mutate(across(starts_with_c("WARD"), as.numeric),
          ward = paste0(SITEID, WARD_1, WARD_2, WARD_3)) |> 
   arrange(SITEID) |> 
   select(USUBJID, ward))
@@ -516,7 +504,7 @@ nb_wards |>
   print(n = Inf)
 ```
 
-### **5.3 Enrolled**
+### Enrolled
 
 A function that computes the data for ward occupancy:
 
@@ -549,12 +537,12 @@ plot_occ <- function(x, y = NULL, ...) {
               c(first(occupancy),
                 rep(tail(head(occupancy, -1), -1), each = 2),
                 last(occupancy)), col = "grey")
-      })
+    })
   if (! is.null(y)) abline(v = y, col = "red")
 }
 ```
 
-where `x` is an output from `ward_occupancy()` and `y` is the date of the last admission of the ward. Putting the ward and dates data together, using `discharge_dates` for patients who did not provide any sample at discharge (for the latter, the time is set to noon and, for those who have admission and discharge the same day with admission in the afternoon, discharge time is then set to one hour after admission):
+where `x` is an output from `ward_occupancy()` and `y` is the date of the last admission of the ward. Putting the ward and dates data together, using `discharge_dates` for patients who did not provide any sample at discharge (for the latter, the time is set to noon and, for those who have admission and discharge the same day with admission in the afternoon, discharge time is then set to one hour after admission):
 
 ```{r}
 (ward_dates <- wards |>
@@ -567,7 +555,7 @@ where `x` is an output from `ward_occupancy()` and `y` is the date of the 
   select(- `Discharge date`))
 ```
 
-Verifying that `DISCHARGE` is after `ADMISSION`:
+Verifying that `DISCHARGE` is after `ADMISSION`:
 
 ```{r}
 ward_dates |> 
@@ -591,22 +579,22 @@ last_admissions <- ward_dates |>
 
 Computing and plotting the ward occupancies: Number of patients enrolled as a function of time for each ward. The red vertical line indicates the last enrollment.
 
-```{r}
-#pdf("ward_occupancy_plots.pdf", width = 14, height = 10)
-opar <- par(mfrow = c(4, 2), mar = c(2, 2, 1, 1))
+```{r ward_occupancies, fig.height = 10.38, fig.width  = 8.3, purl = FALSE, eval = eval_big_fig}
+#| fig-cap: "Number of patients enrolled as a function of time for each ward. The red
+#| vertical line indicates the last enrollment."
+opar <- par(mfrow = c(8, 2))
 ward_dates |> 
   group_by(ward) |> 
   group_map(~ ward_occupancy(.x), .keep = TRUE) |> 
   walk2(last_admissions, plot_occ, ann = FALSE)
 par(opar)
-dev.off()
 ```
 
-### **5.4 Durations**
+### Durations
 
-The distribution of the durations of stay in the wards: Distribution of time spent in the ward
+The distribution of the durations of stay in the wards:
 
-```{r}
+```{r duration_histogram}
 ward_dates |> 
   mutate(duration = as.numeric(DISCHARGE - ADMISSION) / mpd) |> 
   pull(duration) |> 
@@ -615,7 +603,7 @@ ward_dates |>
 
 Let’s see whether there is any trend on the duration of stay across wards: The duration of stay as a function of the number of patients enrolled across the wards.
 
-```{r}
+```{r duration_gam}
 the_data <- ward_dates |> 
   mutate(duration = as.numeric(DISCHARGE - ADMISSION) / mpd) |> 
   left_join(nb_wards, "ward") |> 
@@ -635,115 +623,116 @@ with(the_model, {
 })
 ```
 
-### **5.5 Patient-level covariates**
+### Patient-level covariates
 
 Patient-level covariates to adjust for in the msm of CRE acqusition during hospitalization:
 
 ```{r}
-covariates_1 <- CRF |>    
+(covariates_1 <- CRF |>    
   extract2("ADM") |>    
   select(USUBJID, SITEID, YEAR_BIRTH, GENDER, ADMISSION_DATE, WARD_3, CORMOBIDITY,
          MI_HIS, CHF, PVD, CVD, DEMENTIA, CPD, CTD, PUD, MILD_LIVER, SEV_LIVER,
-         HEMIPLEGIA, SEV_RENAL, starts_with("DIAB"), TUMOR_NOMETA, LEUKEMIA,
+         HEMIPLEGIA, SEV_RENAL, starts_with_c("DIAB"), TUMOR_NOMETA, LEUKEMIA,
          LYMPHOMA,META_TUMOR, ANB_ADMISSION) |> 
-  mutate(
-    hospitaltype = ifelse(SITEID %in% c("010", "159"), "provincial", "district"),
-    age = 2025 - YEAR_BIRTH + 1,
-    Ab_history = ANB_ADMISSION %in% c(1, 4),                # 1: No; 4: Don't know
-    wardtype = as.factor(ifelse(WARD_3, "surgical", "medical/ID")),
-    across(GENDER, ~ c("male", "female")[as.integer(.x)]),
-    across(CORMOBIDITY, ~ .x > 1)) |>
-  select(-YEAR_BIRTH, -ANB_ADMISSION, -WARD_3)
-
-covariates_1
-
+  mutate(hospitaltype = ifelse(SITEID %in% c("010", "159"), "provincial", "district"),
+         age = 2025 - YEAR_BIRTH + 1,
+         Ab_history = ANB_ADMISSION %in% c(1, 4),                # 1: No; 4: Don't know
+         wardtype = as.factor(ifelse(WARD_3, "surgical", "medical/ID")),
+         across(GENDER, ~ c("male", "female")[as.integer(.x)]),
+         across(CORMOBIDITY, ~ .x > 1)) |>
+  select(-c(YEAR_BIRTH, ANB_ADMISSION, WARD_3)))
 ```
 
 ```{r}
-covariates_2 <- CRF |>    
+(covariates_2 <- CRF |>    
   extract2("DEMO_HIS") |>    
-  select(USUBJID, MARITAL, starts_with("JOB"), ADULT, CHILDREN, AMBULATORY, SMOKING,
-         starts_with("ALCOHOL"), starts_with("DRUG")) |> 
+  select(USUBJID, MARITAL, starts_with_c("JOB"), ADULT, CHILDREN, AMBULATORY, SMOKING,
+         starts_with_c("ALCOHOL"), starts_with_c("DRUG")) |> 
   mutate(job = JOB_SPECIFY |>
-           case_match(c("Cán bộ công chức", "Cán bộ xã") ~ 1,
-                      c("Bảo vệ", "Cơ khí","Hộ lý", "Lái tàu thủy", "Lao động tự do",
-                        "Vệ sỹ") ~ 4,
-                      c("già", "Già", "Hết độ tuổi lao động") ~ 8,
-                      c("Ở nhà", "Tự do") ~ 9, .default = as.numeric(JOB)) |> 
-           case_match(6 ~ "farmer", 7 ~ "housewife", 8 ~ "retired",
-                      .default = "all_others"),
+           recode_values(c("Cán bộ công chức", "Cán bộ xã")      ~ "1",
+                         c("Bảo vệ", "Cơ khí","Hộ lý", "Lái tàu thủy",
+                           "Lao động tự do", "Vệ sỹ")            ~ "4",
+                         c("già", "Già", "Hết độ tuổi lao động") ~ "8",
+                         c("Ở nhà", "Tự do")                     ~ "9",
+                         default = JOB) |> 
+           recode_values("6" ~ "farmer", "7" ~ "housewife", "8" ~ "retired",
+                         default = "all_others"),
          householdsize = ADULT + CHILDREN,
-         smoking = case_match(SMOKING, "1" ~ "current smoker",
-                                       "2" ~ "former smoker",
-                                       .default = "all non-smokers"), 
+         smoking = recode_values(SMOKING, "1" ~ "current smoker",
+                                          "2" ~ "former smoker",
+                                          default = "all non-smokers"),
          children = CHILDREN > 0,
          married = MARITAL < 2,
          independent = AMBULATORY < 2,
-         across(starts_with(c("ALCOHOL", "DRUG")), as.integer),
+         across(starts_with_c(c("ALCOHOL", "DRUG")), as.integer),
          problem_alcohol = ALCOHOL_CUTDOWN + ALCOHOL_ANNOYED + ALCOHOL_GUILTY +
            ALCOHOL_DRUG > 4,
          problem_drug = DRUG_CUTDOWN + DRUG_ANNOYED + 
            DRUG_GUILTY + DRUG_DRUG > 4) |> 
-  select(-MARITAL, -starts_with("JOB"), -ADULT, -CHILDREN, -AMBULATORY, -SMOKING,
-         -starts_with("ALCOHOL"), -starts_with("DRUG"))
-
-covariates_2
+  select(-c(MARITAL, starts_with_c("JOB"), ADULT, CHILDREN, AMBULATORY, SMOKING,
+            starts_with_c("ALCOHOL"), starts_with_c("DRUG"))))
 ```
 
 ```{r}
-covariates_3 <- CRF |>    
+(covariates_3 <- CRF |>    
   extract2("DEMO_HIS_HISTORY_GRID") |>    
   select(USUBJID, HIS_CONDITION, HIS_YN) |> 
   mutate(across(HIS_YN, ~ .x > 1),
          across(HIS_CONDITION, ~ c("InvasiveHistory",
                                    "MedicationHistory", "TravelHistory",
                                    "HealthcareHistory")[as.integer(.x)])) |> 
-  pivot_wider(names_from = HIS_CONDITION, values_from = HIS_YN)
-
-covariates_3
+  pivot_wider(names_from = HIS_CONDITION, values_from = HIS_YN))
 ```
 
 ```{r}
 covariates_4 <- CRF |>    
   extract2("DIS") |>    
   select(USUBJID, DISCHARGE, FINAL_DIAG_ICD10) |> 
-  mutate(ICDGroup = case_match(FINAL_DIAG_ICD10,
-                               id_intestinal ~ "ID (Intestinal)",
-                               id_other ~ "ID (Other)",
-                               neoplasms ~ "Neoplasms",
-                               circulatory_diseases ~ "Circulatory diseases",
-                               respiratory_diseases ~ "Respiratory diseases",
-                               digestive_diseases ~ "Digestive diseases",
-                               genitourinary_diseases ~ "Genitourinary diseases",
-                               .default = "Other"))|> 
+  mutate(ICDGroup = recode_values(FINAL_DIAG_ICD10,
+                                  id_intestinal          ~ "ID (Intestinal)",
+                                  id_other               ~ "ID (Other)",
+                                  neoplasms              ~ "Neoplasms",
+                                  circulatory_diseases   ~ "Circulatory diseases",
+                                  respiratory_diseases   ~ "Respiratory diseases",
+                                  digestive_diseases     ~ "Digestive diseases",
+                                  genitourinary_diseases ~ "Genitourinary diseases",
+                                  default = "Other"))|> 
   select(-FINAL_DIAG_ICD10)
 ```
 
 Antibiotic use during hospital stay
 
 ```{r}
-AB_after_admission <- CRF |>    
+ANT_ANB_HOSP_GRID_recoded <- CRF |>    
   extract2("ANT_ANB_HOSP_GRID") |> 
   select(USUBJID, ANB_HOSP_NAME, ANB_OTHER_SPEC, ANB_HOSP_START_DATE,
          ANB_HOSP_END_DATE) |> 
-  mutate(agent = case_match(ANB_OTHER_SPEC,
-                            cefoperazone              ~ "Cefoperazone",
-                            ampicill_sulb             ~ "Ampicillin_sulbactam",
-                            cefamandol                ~ "Cefamandol",
-                            cefo_sulb                 ~ "Cefoperazon_sulbactam",
-                            cefazolin                 ~ "Cefazolin",
-                            cefprozil                 ~ "Cefprozil",
-                            cefradin                  ~ "Cefradin",
-                            ceftizoxime               ~ "Ceftizoxime",
-                            cefmetazol                ~ "Cefmetazol",
-                            ticarcillin_acid_clavulan ~ "Ticarcillin/acid clavulanic",
-                            .default = ANB_HOSP_NAME),
-         DOT = as.numeric((ANB_HOSP_END_DATE - ANB_HOSP_START_DATE) / spd + 1)) |> 
+  mutate(agent = recode_values(ANB_OTHER_SPEC,
+                             cefoperazone              ~ "Cefoperazone",
+                             ampicill_sulb             ~ "Ampicillin_sulbactam",
+                             cefamandol                ~ "Cefamandol",
+                             cefo_sulb                 ~ "Cefoperazon_sulbactam",
+                             cefazolin                 ~ "Cefazolin",
+                             cefprozil                 ~ "Cefprozil",
+                             cefradin                  ~ "Cefradin",
+                             ceftizoxime               ~ "Ceftizoxime",
+                             cefmetazol                ~ "Cefmetazol",
+                             ticarcillin_acid_clavulan ~ "Ticarcillin/acid clavulanic",
+                             default = ANB_HOSP_NAME))
+```
+
+```{r}
+AB_after_admission <- ANT_ANB_HOSP_GRID_recoded |> 
+  mutate(DOT = as.numeric((ANB_HOSP_END_DATE - ANB_HOSP_START_DATE) / spd + 1)) |> 
   group_by(USUBJID, agent) |> 
-  summarise(DOT = sum(DOT, na.rm=TRUE), .groups = "drop") |> 
+  summarise(DOT = sum(DOT, na.rm = TRUE), .groups = "drop") |> 
   pivot_wider(names_from = agent, values_from = DOT, values_fill = 0) |> 
   mutate(across(everything(), ~ replace_na(.x, 0)),
          DOT = rowSums(across(where(is.numeric))))
+```
+
+```{r}
+AB_after_admission
 ```
 
 Early antibiotic exposure during hospital stay
@@ -751,84 +740,45 @@ Early antibiotic exposure during hospital stay
 ```{R}
 # choose early window
 window_days <- 3   # 3 calendar days including admission day
-# use 2 for a tighter "early" exposure
-
-carbapenems <- c("Imipenem_cilastatin", "Meropenem", "Ertapenem", "Doripenem")
+                   # use 2 for a tighter "early" exposure
 
 Admission_date <- CRF |>    
   extract2("ADM") |>    
   distinct(USUBJID, ADMISSION_DATE)
 
-abx_early <- CRF$ANT_ANB_HOSP_GRID |>
-  select(
-    USUBJID,
-    ANB_HOSP_NAME,
-    ANB_OTHER_SPEC,
-    ANB_HOSP_START_DATE,
-    ANB_HOSP_END_DATE
-  ) |>
+abx_early <- ANT_ANB_HOSP_GRID_recoded |> 
   left_join(Admission_date, by = "USUBJID") |>
-  filter(
-    !is.na(ADMISSION_DATE),
-    !is.na(ANB_HOSP_START_DATE),
-    !is.na(ANB_HOSP_END_DATE)
-  ) |>
-  mutate(
-    agent = case_match(
-      ANB_OTHER_SPEC,
-      cefoperazone ~ "Cefoperazone",
-      ampicill_sulb ~ "Ampicillin_sulbactam",
-      cefamandol ~ "Cefamandol",
-      cefo_sulb ~ "Cefoperazon_sulbactam",
-      cefazolin ~ "Cefazolin",
-      cefprozil ~ "Cefprozil",
-      cefradin ~ "Cefradin",
-      ceftizoxime ~ "Ceftizoxime",
-      cefmetazol ~ "Cefmetazol",
-      ticarcillin_acid_clavulan ~ "Ticarcillin_acid_clavulanic",
-      .default = ANB_HOSP_NAME
-    ),
-    win_start = ADMISSION_DATE,
-    win_end   = ADMISSION_DATE + (window_days - 1L),
-
-    overlap_start = pmax(ANB_HOSP_START_DATE, win_start),
-    overlap_end   = pmin(ANB_HOSP_END_DATE, win_end)
-  ) |>
-  filter(overlap_end >= overlap_start) |>
-  mutate(day = map2(overlap_start, overlap_end, seq.Date, by = "day")) |>
+  filter_out(when_any(is.na(ADMISSION_DATE), is.na(ANB_HOSP_START_DATE),
+                      is.na(ANB_HOSP_END_DATE))) |> 
+  mutate(win_start = ADMISSION_DATE,
+         win_end   = ADMISSION_DATE + days(window_days - 1L),
+         overlap_start = pmax(ANB_HOSP_START_DATE, win_start),
+         overlap_end   = pmin(ANB_HOSP_END_DATE, win_end)) |> 
+  filter_out(overlap_end < overlap_start) |>
+  mutate(day = map2(overlap_start, overlap_end, seq, by = "day")) |>
   unnest(day) |>
   distinct(USUBJID, day, agent, .keep_all = TRUE) |>
   mutate(carbapenem = agent %in% carbapenems) |>
   group_by(USUBJID) |>
-  summarise(
-    admission_date   = first(as.Date(ADMISSION_DATE)),
-    early_any_abx    = n() > 0,
-    early_DOT        = n(),
-    early_carb_DOT   = sum(carbapenem),
-    first_abx_day    = min(day),
-    .groups = "drop"
-  ) |>
-  mutate(
-    days_to_first_abx = as.integer(first_abx_day - admission_date)
-  ) |>
-  select(-admission_date, -first_abx_day)
+  summarise(admission_date   = first(ADMISSION_DATE),
+            early_DOT        = n(),
+            early_any_abx    = early_DOT > 0,
+            early_carb_DOT   = sum(carbapenem),
+            first_abx_day    = min(day), .groups = "drop") |>
+  mutate(days_to_first_abx = interval(admission_date, first_abx_day) |>
+           time_length("days")) |>
+  select(-c(admission_date, first_abx_day))
 ```
 
 Merging all `covariates_pt`
 
 ```{r}
-covariates_pt <- covariates_1 |>
-  left_join(covariates_2, by = "USUBJID")|>
-  left_join(covariates_3, by = "USUBJID")|>
-  left_join(covariates_4, by = "USUBJID")|>
-  left_join(AB_after_admission, by = "USUBJID")|>
-  left_join(abx_early, by = "USUBJID")
-
-
-covariates_pt
+(covariates_pt <- list(covariates_1, covariates_2, covariates_3, covariates_4,
+                      AB_after_admission, abx_early) |> 
+  reduce(left_join, by = "USUBJID"))
 ```
 
-## **6 MALDI-TOF data**
+## MALDI-TOF data
 
 List of genus to exclude:
 
@@ -938,22 +888,19 @@ prev_adm_disch <- prevalences_all |>
 The number of positive samples:
 
 ```{r}
-prev_adm_disch |> 
-  select(Identification_MALDITOF, starts_with("n"))
+select(prev_adm_disch, Identification_MALDITOF, starts_with("n"))
 ```
 
 Their proportion among positive samples:
 
 ```{r}
-prev_adm_disch |> 
-  select(Identification_MALDITOF, starts_with("% +"))
+select(prev_adm_disch, Identification_MALDITOF, starts_with("% +"))
 ```
 
 Their proportions among all samples:
 
 ```{r}
-prev_adm_disch |> 
-  select(Identification_MALDITOF, starts_with("% a"))
+select(prev_adm_disch, Identification_MALDITOF, starts_with("% a"))
 ```
 
 The list of bacteria absent at admission and present at discharge:
@@ -993,7 +940,7 @@ make_alluvial_data <- function(x) {
 }
 ```
 
-The following function is a wrapper around the above function and the the `alluvial3()` function that computes the table of changes and plot the alluvial plot for a given set of bacteria to consider:
+The following function is a wrapper around the above function and the the `alluvial3()` function that computes the table of changes and plot the alluvial plot for a given set of bacteria to consider:
 
 ```{r}
 plot_changes <- function(bacteria = "all") {
@@ -1012,20 +959,20 @@ plot_changes <- function(bacteria = "all") {
 
 Let’s use this function to look at some example:
 
-```{r}
+```{r alluvial_plots}
 plot_changes()
-
 plot_changes("Escherichia coli")
-
 plot_changes("Klebsiella pneumoniae")
 ```
 
-### **7.1 All CRE**
+## CRE exposure
+
+### All CRE
 
 The number of enrolled patient with CRE at admission as a function of time for each ward (takes **1.5”**):
 
-```{r}
-opar <- par(mfrow = c(4, 2), mar = c(2, 2, 1, 1))
+```{r enrolled_CRE_patients, fig.height = 10.38, fig.width  = 8.3, purl = FALSE, eval = eval_big_fig}
+opar <- par(mfrow = c(8, 4))
 
 CRE_admission <- MALDITOF_samples |> 
   filter(SampleSchedule == "ADMISSION") |> 
@@ -1040,7 +987,7 @@ ward_dates |>
 par(opar)
 ```
 
-A function that plots the prevalence estimate `estimate` and lower and upper bounds `lower` and `upper` of the confidence interval from a data frame of a ward:
+A function that plots the prevalence estimate `estimate` and lower and upper bounds `lower` and `upper` of the confidence interval from a data frame of a ward:
 
 ```{r}
 plot_prevalence <- function(x) {
@@ -1055,7 +1002,7 @@ plot_prevalence <- function(x) {
 }
 ```
 
-Computing the proportions of CRE positives as a function of time for each ward (takes **1.5”**):
+Computing the proportions of CRE positives as a function of time for each ward (takes **1.5”**):
 
 ```{r}
 numerator_df <- ward_dates |> 
@@ -1074,70 +1021,24 @@ proportion_CRE <- ward_dates |>
   mutate(across(numerator, ~ replace_na(.x, 0)),
          Clopper_Pearson = map2(numerator, denominator, binom_test)) |> 
   unnest_wider(Clopper_Pearson)
-
 ```
 
-To fix the issues with binom test, use the following:
+Proportion of enrolled patients that are CRE positive at admission as a function of time for each ward (takes **1.5”**):
 
-```{r}
-safe_binom_test <- function(x, n) {
-  if (is.na(x) || is.na(n) || n <= 0 || x < 0 || x > n) {
-    return(tibble(
-      estimate = NA_real_,
-      conf.low = NA_real_,
-      conf.high = NA_real_,
-      p.value = NA_real_
-    ))
-  }
-
-  bt <- binom.test(x, n)
-
-  tibble(
-    estimate = unname(bt$estimate),
-    conf.low = bt$conf.int[1],
-    conf.high = bt$conf.int[2],
-    p.value = bt$p.value
-  )
-}
-
-proportion_CRE <- ward_dates |>
-  group_by(ward) |>
-  arrange(.data$ADMISSION, .by_group = TRUE) |>
-  group_modify(~ ward_occupancy(.x)) |>
-  ungroup() |>
-  rename(denominator = occupancy) |>
-  left_join(numerator_df, by = c("ward", "date")) |>
-  mutate(
-    numerator = replace_na(numerator, 0L),
-    denominator = as.integer(round(denominator)),
-    numerator = as.integer(round(numerator))) |>
-  mutate(
-  bt = map2(
-      numerator, denominator,
-      ~ if (!is.na(.x) && !is.na(.y) && .y > 0 && .x >= 0 && .x <= .y) binom.test(.x, .y) else NULL)) |>
-  mutate(
-    estimate = map_dbl(bt, ~ if (is.null(.x)) NA_real_ else unname(.x$estimate)),
-    lower = map_dbl(bt, ~ if (is.null(.x)) NA_real_ else .x$conf.int[1]),
-    upper = map_dbl(bt, ~ if (is.null(.x)) NA_real_ else .x$conf.int[2])) |>
-  select(-bt)
-```
-
-Proportion of enrolled patients that are CRE positive at admission as a function of time for each ward (takes **1.5”**):
-
-```{r}
-opar <- par(mfrow = c(4, 2), mar = c(2, 2, 1, 1))
+```{r prop_patients_with_CRE, fig.height = 10.38, fig.width  = 8.3, purl = FALSE, eval = eval_big_fig}
+opar <- par(mfrow = c(8, 4))
 proportion_CRE |> 
   group_by(ward) |> 
   group_walk(~ plot_prevalence(.x))
 par(opar)
 ```
 
-### **7.2 *K. pneumoniae***
+### *K. pneumoniae*
 
 Here we have the same plots as for the previous section but for *K. pneumoniae* only. First the number of enrolled patient with CRE *K. pneumoniae* at admission as a function of time for each ward (takes **1”**):
 
-```{r}
-opar <- par(mfrow = c(4, 2), mar = c(2, 2, 1, 1))
+```{r enrolled_Kp_patients, fig.height = 10.38, fig.width  = 8.3, purl = FALSE, eval = eval_big_fig}
+opar <- par(mfrow = c(8, 4))
 
 Kp_admission <- MALDITOF |> 
   filter(SampleSchedule == "ADMISSION",
@@ -1153,16 +1054,16 @@ ward_dates |>
 par(opar)
 ```
 
-Proportion of enrolled patients that are CRE *K. pneumoniae* positive at admission as a function of time for each ward (takes **1.5”**):
+Proportion of enrolled patients that are CRE *K. pneumoniae* positive at admission as a function of time for each ward (takes **1.5”**):
 
-```{r}
+```{r prop_patients_with_Kp, fig.height = 10.38, fig.width  = 8.3, purl = FALSE, eval = eval_big_fig}
 numerator_df <- ward_dates |> 
   filter(USUBJID %in% Kp_admission) |> 
   group_by(ward) |> 
   group_modify(~ ward_occupancy(.x)) |> 
   rename(numerator = occupancy)
 
-opar <- par(mfrow = c(4, 2), mar = c(2, 2, 1, 1))
+opar <- par(mfrow = c(8, 4))
 
 ward_dates |> 
   group_by(ward) |> 
@@ -1180,9 +1081,9 @@ ward_dates |>
 par(opar)
 ```
 
-## **8 Data preparation**
+## Data preparation
 
-### **8.1 Minimum data**
+### Minimum data
 
 A function that generates the presence/absence data (coded as 2/1 here) from the output `x` of the MALDITOF where `id` is the column of `x` that contains the patient ID, `time_point` is the column of `x` that contains the time point of the sample (e.g. `ADMISSION` or `DISCHARGE`), `identification` is the column of `x` that contains the bacteria identified by the MALDITOF and `bacteria` is a vector of characters that contains the names of the bacteria that we want to test the presence of.
 
@@ -1198,7 +1099,7 @@ presence_abscence <- function(x, id, time_point, identification, bacteria) {
 }
 ```
 
-The following function adds the samples that were tested negative to the output `x` of `presence_abscence()` where `y` is the samples dates as generated in [Section 5.1](https://choisy.github.io/60HN/analysis.html#sec-samples_dates).
+The following function adds the samples that were tested negative to the output `x` of `presence_abscence()` where `y` is the samples dates as generated in [Section 5.1](https://choisy.github.io/60HN/analysis.html#sec-samples_dates).
 
 ```{r}
 add_negatives <- function(x, y, id, time_point) {
@@ -1210,7 +1111,7 @@ add_negatives <- function(x, y, id, time_point) {
 }
 ```
 
-A function that selects patients from `x` who have samples from at least 2 time points:
+A function that selects patients from `x` who have samples from at least 2 time points:
 
 ```{r}
 select2time_points <- function(x, id) {
@@ -1226,7 +1127,7 @@ select2time_points <- function(x, id) {
 }
 ```
 
-where `id` is the column of `x` that contains the patients IDs. A function that combines state and time data:
+where `id` is the column of `x` that contains the patients IDs. A function that combines state and time data:
 
 ```{r}
 state_time <- function(state, time, id, admission, discharge, time_point) {
@@ -1256,9 +1157,9 @@ msm_data <- function(x, y, id, time_point, identification, bacteria,
 
 where
 
--   `x` is the MALDITOF data as read in section [Section 6](https://choisy.github.io/60HN/analysis.html#sec-malditof_data)
+-   `x` is the MALDITOF data as read in section [Section 6](https://choisy.github.io/60HN/analysis.html#sec-malditof_data)
 
--   `y` is the dates of samples collections as generated from the CRF in section [Section 5.1](https://choisy.github.io/60HN/analysis.html#sec-samples_dates)
+-   `y` is the dates of samples collections as generated from the CRF in section [Section 5.1](https://choisy.github.io/60HN/analysis.html#sec-samples_dates)
 
 -   `id` is the unquoted name of the patient ID variable that should be the same in `x` and `y`
 
@@ -1288,7 +1189,7 @@ msm_data2 <- function(bacteria) msm_data(MALDITOF, dates, USUBJID, SampleSchedul
                                          DISCHARGE)
 ```
 
-### **8.2 Covariates**
+### Covariates
 
 The following function adds to the output `x` of the `msm_data()` function the covariate `otherCRE` that tells whether at admission the patient had a CRE other than the set of `bacteria`:
 
@@ -1305,15 +1206,15 @@ add_other_CRE_at_admission <- function(x, bacteria) {
 }
 ```
 
-This function relies on the `MALDITOF` data frame generated in section [Section 6](https://choisy.github.io/60HN/analysis.html#sec-malditof_data). The following function adds to the output `x` of the `msm_data()` function the `ward` ID covariate:
+This function relies on the `MALDITOF` data frame generated in section [Section 6](https://choisy.github.io/60HN/analysis.html#sec-malditof_data). The following function adds to the output `x` of the `msm_data()` function the `ward` ID covariate:
 
 ```{r}
 add_ward <- function(x) left_join(x, wards, "USUBJID")
 ```
 
-This function relies on the `wards` data frame generated in the section [Section 5.2](https://choisy.github.io/60HN/analysis.html#sec-wards).
+This function relies on the `wards` data frame generated in the section [Section 5.2](https://choisy.github.io/60HN/analysis.html#sec-wards).
 
-The following function adds to the output `x` of the `add_ward()` function the covariates `estimate`, `lower` and `upper` that are the temporal means of the proportions of enrolled patient that are CRE positive in the ward for the duration of the study:
+The following function adds to the output `x` of the `add_ward()` function the covariates `estimate`, `lower` and `upper` that are the temporal means of the proportions of enrolled patient that are CRE positive in the ward for the duration of the study:
 
 ```{R}
 add_CRE_prevalence_in_ward <- function(x) {
@@ -1332,21 +1233,43 @@ add_CRE_prevalence_in_ward <- function(x) {
 }
 ```
 
-This function relies on the `proportion_CRE` data frame generated in the section [Section 7.1](https://choisy.github.io/60HN/analysis.html#sec-proportion_CRE).
+This function relies on the `proportion_CRE` data frame generated in the section [Section 7.1](https://choisy.github.io/60HN/analysis.html#sec-proportion_CRE).
 
 ```{r}
 add_covariates_pt <- function(x) left_join(x, covariates_pt, "USUBJID")
 ```
 
-This function relies on the `covariates_pt` data frame generated in the section [Section 5.](https://choisy.github.io/60HN/analysis.html#sec-wards)5.
+This function relies on the `covariates_pt` data frame generated in the section [Section 5.](https://choisy.github.io/60HN/analysis.html#sec-wards)5.
 
-## **9 *K. pneumoniae***
+A function that adds all co-variables:
 
-### **9.1 Preparing the data**
+```{r}
+add_all_covariables <- function(df, bug) {
+  df |>
+    add_other_CRE_at_admission(bug) |> 
+    add_ward() |> 
+    add_CRE_prevalence_in_ward() |>
+    mutate(estimate_log = log1p(estimate),
+           estimate_med = estimate > median(estimate),
+           estimate_quartile = cut(estimate,
+                                   breaks = quantile(estimate), 
+                                   probs = c(0, 1 / 3, 2 / 3, 1),
+                                   include.lowest = TRUE)) |> 
+    add_covariates_pt() |>
+    mutate(early_any_abx  = replace_na(early_any_abx, FALSE),
+           DOT_bin = DOT > 0,
+           DOT_5 = DOT / 5,
+           across(c(early_DOT, early_carb_DOT, DOT), ~ tidyr::replace_na(.x, 0)))
+}
+```
+
+## *K. pneumoniae*
+
+### Preparing the data
 
 Generating the presence/absence of *K. pneumoniae* (takes **2.5”**):
 
-```{r}
+```{r K_pneumoniae_raw, cache = TRUE}
 K_pneumoniae_raw <- presence_abscence(MALDITOF, USUBJID, SampleSchedule,
                                       Identification_MALDITOF, "Klebsiella pneumoniae")
 ```
@@ -1357,7 +1280,7 @@ Which gives:
 K_pneumoniae_raw
 ```
 
-Where `1` is absence and `2` is presence. Adding the samples with negative culture:
+Where `1` is absence and `2` is presence. Adding the samples with negative culture:
 
 ```{R}
 (K_pneumoniae_raw_a <- add_negatives(K_pneumoniae_raw, dates, USUBJID, SampleSchedule))
@@ -1376,7 +1299,7 @@ Making the dataset for the multistate modelling:
                       ADMISSION, DISCHARGE, SampleSchedule))
 ```
 
-Alternatively, we can do all at once with this function (takes **2.5”**):
+Alternatively, we can do all at once with this function (takes **2.5”**):
 
 ```{r}
 Kp_msm <- msm_data(MALDITOF, dates, USUBJID, SampleSchedule, Identification_MALDITOF,
@@ -1389,33 +1312,32 @@ which gives:
 Kp_msm
 ```
 
-Or, even simpler here (takes **2.5”**):
+Or, even simpler here (takes **2.5”**):
 
-```{r}
+```{r Kp_msm, cache = TRUE}
 Kp_msm <- msm_data2("Klebsiella pneumoniae")
 ```
 
 Adding covariates:
 
 ```{r}
-(Kp_msm_cov <- Kp_msm |> 
-   add_other_CRE_at_admission("Klebsiella pneumoniae") |> 
-   add_ward() |> 
-   add_CRE_prevalence_in_ward()|>
-   mutate(estimate_log = log1p(estimate),
-          estimate_med = estimate > median(estimate),
-          estimate_quartile = cut(estimate,
-                                 breaks = quantile(estimate), 
-                                 probs = c(0, 1/3, 2/3, 1)),
-          include.lowest = TRUE)|> 
-   add_covariates_pt()|>
-    mutate(early_any_abx  = replace_na(early_any_abx, FALSE),
-           early_DOT = tidyr::replace_na(early_DOT, 0),
-           early_carb_DOT = tidyr::replace_na(early_carb_DOT, 0),
-           DOT = tidyr::replace_na(DOT, 0),
-           DOT_bin = DOT > 0,
-           DOT_5 = DOT/5))
+#(Kp_msm_cov <- Kp_msm |> 
+#   add_other_CRE_at_admission("Klebsiella pneumoniae") |> 
+#   add_ward() |> 
+#   add_CRE_prevalence_in_ward() |>
+#   mutate(estimate_log = log1p(estimate),
+#          estimate_med = estimate > median(estimate),
+#          estimate_quartile = cut(estimate,
+#                                  breaks = quantile(estimate), 
+#                                  probs = c(0, 1 / 3, 2 / 3, 1),
+#                                  include.lowest = TRUE)) |> 
+#   add_covariates_pt() |>
+#   mutate(early_any_abx  = replace_na(early_any_abx, FALSE),
+#          DOT_bin = DOT > 0,
+#          DOT_5 = DOT / 5,
+#          across(c(early_DOT, early_carb_DOT, DOT), ~ tidyr::replace_na(.x, 0))))
 
+Kp_msm_cov <- add_all_covariables(Kp_msm, "Klebsiella pneumoniae")
 sum(is.na(AB_after_admission$DOT))
 sum(is.na(Kp_msm_cov$DOT))
 ```
@@ -1424,36 +1346,34 @@ Check number of events in each state and state transitions, and crude count at a
 
 ```{r}
 table(Kp_msm_cov$state)
-table(
-  Kp_msm_cov$state[-nrow(Kp_msm_cov)],
-  Kp_msm_cov$state[-1]
-)
-
+table(Kp_msm_cov$state[-nrow(Kp_msm_cov)], Kp_msm_cov$state[-1])
 table(Kp_msm_cov$state[Kp_msm_cov$days == 0])   # admission
 table(Kp_msm_cov$state[Kp_msm_cov$days > 0])   # discharge
 ```
 
-### **9.2 Multi-state modelling**
+### Multi-state modelling
 
-#### **9.2.1 State definition and transition structure**
+#### State definition and transition structure
 
 We defined a two-state continuous-time multistate model with the following states:
 
-State 1: No carriage of CRE\
-State 2: Carriage of CRE
+-   State 1: No carriage of CRE
+
+-   State 2: Carriage of CRE
 
 The following transitions were allowed:
 
-1 → 2: Acquisition of CRE carriage\
-2 → 1: Clearance of CRE carriage
+-   1 -\> 2: Acquisition of CRE carriage
+
+-   2 -\> 1: Clearance of CRE carriage
 
 Patient states were observed at discrete time points (admission and discharge), and transitions between states were not observed continuously, resulting in interval-censored data. The underlying process was assumed to follow a time-homogeneous continuous-time Markov model.
 
-Clearance (2 → 1) was included to allow reversibility of carriage status between observation times, although the exact timing of clearance was not observed. Given the limited number of observation time points, estimates of clearance should be interpreted with caution.
+Clearance (2 -\> 1) was included to allow reversibility of carriage status between observation times, although the exact timing of clearance was not observed. Given the limited number of observation time points, estimates of clearance should be interpreted with caution.
 
 Time was measured in days since admission. Discharge defined the end of the observation period and was treated as right censoring rather than as a separate state. Transition intensities are therefore interpreted conditional on the observed follow-up time. Because discharge terminates observation and may be related to patient status, it may represent an informative censoring mechanism, which is not explicitly modeled in this framework.
 
-#### **9.2.2 Basic operations**
+#### Basic operations
 
 Defining the structure of the Q matrix:
 
@@ -1504,28 +1424,27 @@ Log-likelihood of the model:
 logLik(Kp_msm_fit)
 ```
 
-#### **9.2.3 Bootstrapped CIs**
+#### Bootstrapped CIs
 
 Bootstrapping was used to obtain robust confidence intervals for transition intensities due to potential model uncertainty and interval censoring.
 
 Bootstrapping estimates (1000 samples, takes **42” in parallel** on 11 cores; if 1 core, takes **5 minutes**):
 
-```{r}
+```{r q_list, cache = TRUE}
 q_list <- boot.msm(Kp_msm_fit, function(x) qmatrix.msm(x)$estimates, 1000,
-                   cores = 1)
+                   cores = nb_cores)
 ```
 
-Reformating the output into an array of dimension 2, 2, and 1000 (i.e. 2 states and 1000 bootstrap samples):
+Reformating the output into an array of dimension 2, 2, and 1000 (i.e. 2 states and 1000 bootstrap samples):
 
-```{R}
+```{r}
 q_array <- array(unlist(q_list), dim = c(2, 2, 1000))
 ```
 
-Or we can simply do this instead of the above two successive command lines (takes **42” in parallel** on 11 cores):
+Or we can simply do this instead of the above two successive command lines (takes **42" in parallel** on 11 cores):
 
-```{r}
-
-q_array <- boot_msm(Kp_msm_fit, qmatrix.msm, 1000, cores = 1)
+```{r q_array, cache = TRUE}
+q_array <- boot_msm(Kp_msm_fit, qmatrix.msm, 1000, cores = nb_cores)
 ```
 
 The bootstrap estimate of the standard deviation:
@@ -1566,9 +1485,9 @@ Or, equivalently, in a formatted output:
 boot_ci(q_array)
 ```
 
-#### **9.2.4 Covariates**
+#### Covariates
 
-##### **9.2.4.1 One Covariate**
+##### One Covariate
 
 Covariates were applied to a specific transition (i.e. acquisition only).
 
@@ -1578,145 +1497,129 @@ Covariates were applied to a specific transition (i.e. acquisition only).
 ```
 
 ```{R}
-qmatrix.msm(Kp_msm_cov_fit, covariates=list(otherCRE = FALSE))
+qmatrix.msm(Kp_msm_cov_fit, covariates = list(otherCRE = FALSE))
 ```
 
 ```{r}
-qmatrix.msm(Kp_msm_cov_fit, covariates=list(otherCRE = TRUE))
+qmatrix.msm(Kp_msm_cov_fit, covariates = list(otherCRE = TRUE))
 ```
 
 ```{r}
-
 (Kp_msm_cov_fit <- bsm(state ~ days, USUBJID, Kp_msm_cov,
                        covariates = list("1-2" = ~ estimate)))
 ```
 
 ```{r}
-
 (Kp_msm_cov_fit <- bsm(state ~ days, USUBJID, Kp_msm_cov,
                        covariates = list("1-2" = ~ estimate_quartile)))
 ```
 
 Summary: The covariate was not associated with infection risk when modeled as a continuous, dichotomized, or categorized variable. In the quartile-based analysis, no significant differences were observed across groups, and no clear dose-response relationship was evident.
 
-##### **9.2.4.2 More Covariates**
+##### More Covariates
 
 Fit-test
 
 ```{r}
-fit_test <- bsm(state ~ days, USUBJID, Kp_msm_cov,
-              covariates = list("1-2" = ~ age)
-)
-
+fit_test <- bsm(state ~ days, USUBJID, Kp_msm_cov, covariates = list("1-2" = ~ age))
 summary(fit_test)
-
 str(summary(fit_test))
 ```
 
 Univariable exploration
 
-List of specific antibiotic agents to consider
-
-"Gentamicin", "Imipenem_cilastatin", "Levofloxacin","Linezolid", "Ceftizoxime", "Ciprofloxacin", "Metronidazole_IV", "Cefoperazone", "Amoxicillin_clavulanicAcid", "Ceftriaxone", "Doxycycline", "Amoxicillin", "Ceftazidime", "Metronidazole_oral", "Tinidazole_oral", "Cefotaxime", "Cefuroxime", "Amikacin", "Ticarcillin/acid clavulanic", "Piperacillin_tazobactam", "Cefotiam", "Moxifloxacin", "Ampicillin_sulbactam", "Cefepime", "Meropenem", "Vancomycin_IV", "Cefixime", "Spiramycin_metronidazole", "Azithromycin", "Ertapenem", "Ofloxacin", "Cefoxitin", "Tobramycin", "Cefazolin", "Cefpodoxime_proxetil", "Cefradin", "Cefmetazol", "Clarithromycin", "Cefamandol", "Tinidazole_IV", "Cefoperazon_sulbactam", "Cefoperazone_sulbactam", "Cefalexin", "Clindamycin", "Cefaclor", "Cloxacillin",
-
-**(takes 10'')**
+The list of variables to use in uni-variable models:
 
 ```{r}
+vars <- c("estimate", "upper", "lower", "estimate_quartile", "otherCRE", "age",
+          "GENDER", "Ab_history", "HealthcareHistory", "CORMOBIDITY", "CPD",
+          "SEV_RENAL", "wardtype", "hospitaltype", "problem_alcohol", "problem_drug",
+          "MedicationHistory", "smoking", "children", "married", "householdsize",
+          "job", "early_any_abx", "early_DOT", "DOT", "DOT_bin", "DOT_5",
+          "Amoxicillin_clavulanicAcid", "Cefoperazone", "Ciprofloxacin", "ICDGroup")
+```
 
-vars <- c(
-  "estimate","upper","lower","estimate_quartile", "otherCRE", "age", "GENDER",
-  "Ab_history", "HealthcareHistory", "CORMOBIDITY", "CPD", "SEV_RENAL",
-  "wardtype","hospitaltype", "problem_alcohol", "problem_drug",
-  "MedicationHistory", "smoking", "children", "married", "householdsize",
-  "job", "early_any_abx","early_DOT", "DOT", "DOT_bin", "DOT_5",
-  "Amoxicillin_clavulanicAcid","Cefoperazone", "Ciprofloxacin", "ICDGroup"
-)
+The function that runs an uni-variable model:
 
-# run univariable models
-
-results_list <- lapply(vars, function(v) {
-  
-  fit <- try(
-    bsm(
-      state ~ days,
-      USUBJID,
-      Kp_msm_cov,
-      covariates = list("1-2" = as.formula(paste0("~", v)))
-    ),
-    silent = TRUE
-  )
-  
-  # skip failed models
+```{r}
+univariable_model <- function(v, data) {
+  fit <- try(bsm(state ~ days, USUBJID, data,
+                 covariates = list("1-2" = reformulate(v))), silent = TRUE)
+# skip failed models:
   if (inherits(fit, "try-error")) return(NULL)
-  
   res <- extract_hr_msm(fit)
-  
   if (is.null(res)) return(NULL)
-  
   res$variable <- v
   res
-})
+}
+```
 
-# combine results
-Kp_uni_table <- bind_rows(results_list)
+The function that makes the univariable models table:
 
-# Add summary numbers and %
-Kp_pt <- Kp_msm_cov |>
-  group_by(USUBJID) |>
-  slice(1) |>
-  ungroup()
+```{r}
+make_uni_table <- function(df, vars) {
+  vars |> 
+    set_names() |>
+    map_dfr(univariable_model, data = df, .id = "variable")
+}
+```
 
-nN_list <- lapply(vars, get_nN, data = Kp_pt)
-nN_table <- bind_rows(nN_list)
+The function that makes the nN table:
 
+```{r}
+make_nN_table <- function(df, vars) {
+  df |> 
+    filter(days == 0) |> 
+    select(!! vars) |>
+    get_nN()
+}
+```
 
-Kp_uni_table_final <- Kp_uni_table |>
-  left_join(nN_table, by = "variable") |>
-  mutate(
-    n_pct = ifelse(
-      is.na(n),
-      NA,
-      paste0(n, "/", N, " (", round(pct, 1), "%)")
-    ),
-    significant = ifelse(lower > 1 | upper < 1, "Yes", "No")
-  )
+Running uni-variable models **(takes 10")**:
 
+```{r Kp_uni_table_final, cache = TRUE}
+Kp_uni_table <- make_uni_table(Kp_msm_cov, vars)
+Kp_nN_table <- make_nN_table(Kp_msm_cov, vars)
 
-write.csv(Kp_uni_table_final, "Kp_uni_table_final.csv", row.names = FALSE)
+# The code below cannot work because the values of the variable "variable" in the two
+# data frames Kp_uni_table and Kp_nN_table are not the same!
 
-Kp_uni_table_final
+#Kp_uni_table_final <- Kp_uni_table |>
+#  left_join(Kp_nN_table, by = "variable") |>
+#  mutate(n_pct = ifelse(is.na(n), NA, paste0(n, "/", N, " (", round(pct, 1), "%)")),
+#         significant = ifelse(lower > 1 | upper < 1, "Yes", "No"))
+#
+#write.csv(Kp_uni_table_final, "Kp_uni_table_final.csv", row.names = FALSE)
+#
+#Kp_uni_table_final
 ```
 
 Multivariable model
 
 ```{r}
-covariates1 = list(
-  "1-2" = ~ estimate_quartile + age + SEV_RENAL + problem_alcohol + problem_drug + early_DOT + otherCRE
-)
+covariates1 = list("1-2" = ~ estimate_quartile + age + SEV_RENAL + problem_alcohol +
+                     problem_drug + early_DOT + otherCRE)
 
-(Kp_msm_cov_fit <- bsm(state ~ days, USUBJID, Kp_msm_cov,
-                       covariates = covariates1))
+(Kp_msm_cov_fit <- bsm(state ~ days, USUBJID, Kp_msm_cov, covariates = covariates1))
 ```
 
-#### **9.2.5 Diagnostics**
+#### Diagnostics
 
 Model fit was assessed by comparing observed and expected state prevalences over time.
 
-```{R}
-plot.prevalence.msm(Kp_msm_fit, mintime = 0, maxtime = 15, 
-                    legend.pos = c(5, 90))
+```{r diagnostics_Kp}
+plot.prevalence.msm(Kp_msm_fit, mintime = 0, maxtime = 15, legend.pos = c(5, 90))
 ```
 
 Model fit was assessed by comparing observed and expected state prevalences over time.
 
-```{R}
-plot.prevalence.msm(Kp_msm_cov_fit, mintime = 0, maxtime = 15,
-                    legend.pos = c(5, 90))
+```{r}
+# plot.prevalence.msm(Kp_msm_cov_fit, mintime = 0, maxtime = 15, legend.pos = c(5, 90))
 ```
 
-## **10 *E. coli***
+## *E. coli*
 
-### **10.1 Preparing the data**
+### Preparing the data
 
 Generating the presence/absence of *E. coli* (takes **2.5”**):
 
@@ -1730,7 +1633,7 @@ Which gives:
 E_coli_raw
 ```
 
-Where `1` is absence and `2` is presence. Adding the samples with negative culture:
+Where `1` is absence and `2` is presence. Adding the samples with negative culture:
 
 ```{r}
 (E_coli_raw_a <- add_negatives(E_coli_raw, dates, USUBJID, SampleSchedule))
@@ -1751,25 +1654,30 @@ Making the dataset for the multistate modelling:
 Adding covariates:
 
 ```{r}
-(Ec_msm_cov <- Ec_msm |>     
-    add_other_CRE_at_admission("Escherichia coli") |>     
-    add_ward() |>     
-    add_CRE_prevalence_in_ward()|>    
-    mutate(estimate_log = log1p(estimate),           
-           estimate_med = estimate > median(estimate),           
-           estimate_quartile = cut(estimate,                                  
-                                   breaks = quantile(estimate),
-                                   probs = c(0, 1/3, 2/3, 1)),           
-           include.lowest = TRUE)|>     
-    add_covariates_pt()|>     
-    mutate(early_any_abx  = replace_na(early_any_abx, FALSE),            
-           early_DOT = tidyr::replace_na(early_DOT, 0),            
-           early_carb_DOT = tidyr::replace_na(early_carb_DOT, 0),            
-           DOT = tidyr::replace_na(DOT, 0),            
-           DOT_bin = DOT > 0,            
-           DOT_5 = DOT/5,
-           time_interval = factor(ifelse(days <= 7, "early", "late"))))  
+#(Ec_msm_cov <- Ec_msm |>     
+#    add_other_CRE_at_admission("Escherichia coli") |>     
+#    add_ward() |>     
+#    add_CRE_prevalence_in_ward()|>    
+#    mutate(estimate_log = log1p(estimate),           
+#           estimate_med = estimate > median(estimate),           
+#           estimate_quartile = cut(estimate,                                  
+#                                   breaks = quantile(estimate),
+#                                   probs = c(0, 1/3, 2/3, 1)),           
+#           include.lowest = TRUE)|>     
+#    add_covariates_pt()|>     
+#    mutate(early_any_abx  = replace_na(early_any_abx, FALSE),            
+#           early_DOT = tidyr::replace_na(early_DOT, 0),            
+#           early_carb_DOT = tidyr::replace_na(early_carb_DOT, 0),            
+#           DOT = tidyr::replace_na(DOT, 0),            
+#           DOT_bin = DOT > 0,            
+#           DOT_5 = DOT/5,
+#           time_interval = factor(ifelse(days <= 7, "early", "late"))))
+```
 
+```{r}
+(Ec_msm_cov <- Ec_msm |>
+  add_all_covariables("Escherichia coli") |> 
+  mutate(time_interval = factor(ifelse(days <= 7, "early", "late"))))
 ```
 
 Check number of events in each state and state transitions, and crude count at admission and discharge
@@ -1781,9 +1689,9 @@ table(Ec_msm_cov$state[Ec_msm_cov$days == 0])   # admission table
 #(Ec_msm_cov$state[Ec_msm_cov$days > 0])   # discharge
 ```
 
-### **10.2 Multi-state modelling**
+### Multi-state modelling
 
-#### **10.2.1 State definition and transition structure**
+#### State definition and transition structure
 
 We defined a two-state continuous-time multistate model with the following states:
 
@@ -1801,7 +1709,7 @@ Clearance (2 → 1) was included to allow reversibility of carriage status betwe
 
 Time was measured in days since admission. Discharge defined the end of the observation period and was treated as right censoring rather than as a separate state. Transition intensities are therefore interpreted conditional on the observed follow-up time. Because discharge terminates observation and may be related to patient status, it may represent an informative censoring mechanism, which is not explicitly modeled in this framework.
 
-#### **10.2.2 Basic operations**
+#### Basic operations
 
 ```{R}
 (Ec_msm_fit <- bsm(state ~ days, USUBJID, Ec_msm))
@@ -1831,14 +1739,14 @@ Log-likelihood of the model:
 logLik(Ec_msm_fit)
 ```
 
-#### **10.2.3 Bootstrapped CIs**
+#### Bootstrapped CIs
 
 Bootstrapping was used to obtain robust confidence intervals for transition intensities due to potential model uncertainty and interval censoring.
 
 Bootstrapping estimates (1000 samples, takes **42” in parallel** on 11 cores; if 1 core, takes **4 minutes**):
 
-```{r}
-q_array <- boot_msm(Ec_msm_fit, qmatrix.msm, 1000, cores = 1)
+```{r q_array2, cache = TRUE}
+q_array <- boot_msm(Ec_msm_fit, qmatrix.msm, 1000, cores = nb_cores)
 ```
 
 The bootstrap estimate of the standard deviation:
@@ -1865,14 +1773,15 @@ The bootstrap estimate of the 95% confidence interval:
 boot_ci(q_array)
 ```
 
-#### **10.2.4 Covariates**
+#### Covariates
 
-##### **10.2.4.1 One Covariate**
+##### One Covariate
 
 Covariates were applied to a specific transition (i.e. acquisition only).
 
 ```{r}
-(Ec_msm_cov_fit <- bsm(state ~ days, USUBJID, Ec_msm_cov,                        covariates = list("1-2" = ~ otherCRE)))
+(Ec_msm_cov_fit <- bsm(state ~ days, USUBJID, Ec_msm_cov,
+                       covariates = list("1-2" = ~ otherCRE)))
 ```
 
 ```{r}
@@ -1884,16 +1793,18 @@ qmatrix.msm(Ec_msm_cov_fit, covariates=list(otherCRE = TRUE))
 ```
 
 ```{r}
-(Ec_msm_cov_fit <- bsm(state ~ days, USUBJID, Ec_msm_cov,                        covariates = list("1-2" = ~ estimate)))
+(Ec_msm_cov_fit <- bsm(state ~ days, USUBJID, Ec_msm_cov,
+                       covariates = list("1-2" = ~ estimate)))
 ```
 
 ```{r}
-(Ec_msm_cov_fit <- bsm(state ~ days, USUBJID, Ec_msm_cov,                        covariates = list("1-2" = ~ estimate_quartile)))
+(Ec_msm_cov_fit <- bsm(state ~ days, USUBJID, Ec_msm_cov,
+                       covariates = list("1-2" = ~ estimate_quartile)))
 ```
 
 Summary: The covariate was not associated with infection risk when modeled as a continuous, dichotomized, or categorized variable. In the quartile-based analysis, no significant differences were observed across groups, and no clear dose-response relationship was evident.
 
-##### **10.2.4.2 More Covariates**
+##### More Covariates
 
 Fit-test
 
@@ -1906,77 +1817,23 @@ str(summary(fit_test))
 
 Univariable exploration
 
-List of specific antibiotic agents to consider
+**(takes 10")**
 
-"Gentamicin", "Imipenem_cilastatin", "Levofloxacin","Linezolid", "Ceftizoxime", "Ciprofloxacin", "Metronidazole_IV", "Cefoperazone", "Amoxicillin_clavulanicAcid", "Ceftriaxone", "Doxycycline", "Amoxicillin", "Ceftazidime", "Metronidazole_oral", "Tinidazole_oral", "Cefotaxime", "Cefuroxime", "Amikacin", "Ticarcillin/acid clavulanic", "Piperacillin_tazobactam", "Cefotiam", "Moxifloxacin", "Ampicillin_sulbactam", "Cefepime", "Meropenem", "Vancomycin_IV", "Cefixime", "Spiramycin_metronidazole", "Azithromycin", "Ertapenem", "Ofloxacin", "Cefoxitin", "Tobramycin", "Cefazolin", "Cefpodoxime_proxetil", "Cefradin", "Cefmetazol", "Clarithromycin", "Cefamandol", "Tinidazole_IV", "Cefoperazon_sulbactam", "Cefoperazone_sulbactam", "Cefalexin", "Clindamycin", "Cefaclor", "Cloxacillin"
+```{r Ec_uni_table_final, cache = TRUE}
+Ec_uni_table <- make_uni_table(Ec_msm_cov, vars)
+Ec_nN_table <- make_nN_table(Ec_msm_cov, vars)
 
-**(takes 10'')**
+# The code below cannot work because the values of the variable "variable" in the two
+# data frames Kp_uni_table and nN_table are not the same!
 
-```{r}
-
-vars <- c(
-  "estimate","upper","lower","estimate_quartile", "otherCRE", "age", "GENDER",
-  "Ab_history", "HealthcareHistory", "CORMOBIDITY", "CPD", "SEV_RENAL",
-  "wardtype","hospitaltype", "problem_alcohol", "problem_drug",
-  "MedicationHistory", "smoking", "children", "married", "householdsize",
-  "job", "early_any_abx","early_DOT", "DOT", "DOT_bin", "DOT_5",
-  "Amoxicillin_clavulanicAcid","Cefoperazone", "Ciprofloxacin", "ICDGroup"
-)
-
-
-# run univariable models
-
-results_list <- lapply(vars, function(v) {
-  
-  fit <- try(
-    bsm(
-      state ~ days,
-      USUBJID,
-      Ec_msm_cov,
-      covariates = list("1-2" = as.formula(paste0("~", v)))
-    ),
-    silent = TRUE
-  )
-  
-  # skip failed models
-  if (inherits(fit, "try-error")) return(NULL)
-  
-  res <- extract_hr_msm(fit)
-  
-  if (is.null(res)) return(NULL)
-  
-  res$variable <- v
-  res
-})
-
-# combine results
-Ec_uni_table <- bind_rows(results_list)
-
-# Add summary numbers and %
-Ec_pt <- Ec_msm_cov |>
-  group_by(USUBJID) |>
-  slice(1) |>
-  ungroup()
-
-nN_list <- lapply(vars, get_nN, data = Ec_pt)
-nN_table <- bind_rows(nN_list)
-
-
-Ec_uni_table_final <- Ec_uni_table |>
-  left_join(nN_table, by = "variable") |>
-  mutate(
-    n_pct = ifelse(
-      is.na(n),
-      NA,
-      paste0(n, "/", N, " (", round(pct, 1), "%)")
-    ),
-    significant = ifelse(lower > 1 | upper < 1, "Yes", "No")
-  )
-
-
-write.csv(Ec_uni_table_final, "Ec_uni_table_final.csv", row.names = FALSE)
-
-Ec_uni_table_final
+#Ec_uni_table_final <- Ec_uni_table |>
+#  left_join(Ec_nN_table, by = "variable") |>
+#  mutate(n_pct = ifelse(is.na(n), NA, paste0(n, "/", N, " (", round(pct, 1), "%)")),
+#         significant = ifelse(lower > 1 | upper < 1, "Yes", "No"))
+#
+#write.csv(Ec_uni_table_final, "Ec_uni_table_final.csv", row.names = FALSE)
+#
+#Ec_uni_table_final
 ```
 
 Multivariable model
@@ -1988,17 +1845,16 @@ covariates_Ec = list("1-2" = ~ age + early_DOT + wardtype)
                        covariates = covariates_Ec))
 ```
 
-#### **10.2.5 Diagnostics**
+#### Diagnostics
 
 Model fit was assessed by comparing observed and expected state prevalences over time.
 
-```{R}
+```{r diagnostics_Ec}
 plot.prevalence.msm(Ec_msm_fit, mintime = 0, maxtime = 15, legend.pos = c(5, 90))
 ```
 
 Model fit was assessed by comparing observed and expected state prevalences over time.
 
-```{R}
-plot.prevalence.msm(Ec_msm_cov_fit, mintime = 0, maxtime = 15, 
-                    legend.pos = c(5, 90))
+```{r}
+# plot.prevalence.msm(Ec_msm_cov_fit, mintime = 0, maxtime = 15, legend.pos = c(5, 90))
 ```
